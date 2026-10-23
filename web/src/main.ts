@@ -6,13 +6,17 @@ import {
 } from '../../src/lib/ajo';
 import { DemoCircle, DEMO_NAMES } from './demo';
 import { wallet } from './wallet';
-import { provider, explorerTx, planGenesis, planContribution } from './chain';
+import { getProvider, explorerTx, planGenesis, planContribution } from './chain';
+import { MockNetworkProvider } from 'cashscript';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const bch = (sats: bigint) => (Number(sats) / 1e8).toLocaleString(undefined, { maximumFractionDigits: 8 });
 const short = (a: string) => { const [p, r] = a.split(':'); return `${p}:${r.slice(0, 6)}…${r.slice(-5)}`; };
+
+/** Offline provider used only to derive addresses with the right network prefix. */
+const offline = (net: Net) => { const m = new MockNetworkProvider(); (m as any).network = net; return m; };
 
 let network: Net = (localStorage.getItem('ajo-net') as Net) || 'chipnet';
 
@@ -169,7 +173,7 @@ function renderCreate() {
       const contribution = BigInt(Math.round(parseFloat(String(fd.get('amt'))) * 1e8));
       const base = { name: String(fd.get('name')), network, members, contribution, maxFee: BigInt(String(fd.get('fee') || DEFAULT_MAX_FEE)) };
       const cat = String(fd.get('cat') || '').trim().toLowerCase();
-      if (cat) { const p = { ...base, stateCategory: cat }; circleContract(p, provider(network)); saveCircle(p); location.hash = `#/c/${encodeCircle(p)}?manual=1`; return; }
+      if (cat) { const p = { ...base, stateCategory: cat }; circleContract(p, offline(p.network)); saveCircle(p); location.hash = `#/c/${encodeCircle(p)}?manual=1`; return; }
       const a = wallet.state === 'connected' ? wallet.address(network) : null;
       if (!a) { openWalletModal(); throw new Error('Connect your wallet (WizardConnect) to sign the start transaction.'); }
       err.textContent = 'Preparing transaction…';
@@ -195,8 +199,10 @@ async function renderCircle(encoded: string, manual: boolean) {
   let p: CircleParams;
   try { p = decodeCircle(encoded); } catch { app.innerHTML = '<section class="card"><p class="err">This circle link is broken.</p></section>'; return; }
   if (p.network !== network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
-  const prov = provider(p.network);
-  const contract = circleContract(p, prov);
+  // Address derivation is offline; the Electrum provider is resolved lazily in load().
+  const contract0 = circleContract(p, offline(p.network));
+  let prov: Awaited<ReturnType<typeof getProvider>> | null = null;
+  let contract = contract0;
   const names = p.members.map((m, i) => `Member ${i + 1}`);
   const uri = `${contract.address}?amount=${bch(p.contribution)}`;
   const qr = await QRCode.toDataURL(uri, { margin: 1, width: 240 });
@@ -220,6 +226,7 @@ async function renderCircle(encoded: string, manual: boolean) {
   const load = async () => {
     const live = $('#live');
     try {
+      if (!prov) { prov = await getProvider(p.network); contract = circleContract(p, prov); }
       const utxos = await contract.getUtxos();
       const s = circleStatus(p, utxos);
       live.innerHTML = `${s.round === null ? '<p class="note">Not started yet: the circle-state NFT is not at the contract address (or still unconfirmed).</p>' : roundTrack(names, s.round, s.completed)}
@@ -230,13 +237,13 @@ async function renderCircle(encoded: string, manual: boolean) {
       $('#lref').onclick = load;
       $('#lpay').onclick = async () => {
         try {
-          const r = buildPayout(p, contract, await contract.getUtxos(), prov);
-          const txid = await prov.sendRawTransaction(r.builder.build());
+          const r = buildPayout(p, contract, await contract.getUtxos(), prov!);
+          const txid = await prov!.sendRawTransaction(r.builder.build());
           $('#lerr').innerHTML = `Paid! <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`;
           setTimeout(load, 2500);
         } catch (e: any) { $('#lerr').textContent = String(e.message || e); }
       };
-    } catch (e: any) { live.innerHTML = `<p class="err">Could not reach the ${p.network} Electrum server: ${esc(String(e.message || e))}</p><button class="ghost" id="lref">Retry</button>`; $('#lref').onclick = load; }
+    } catch (e: any) { live.innerHTML = `<p class="err">Could not read the ${p.network} chain: ${esc(String(e.message || e))}</p><button class="ghost" id="lref">Retry</button>`; $('#lref').onclick = load; }
   };
   load();
 }
