@@ -24,6 +24,8 @@
   "license": "MIT",
   "dependencies": {
     "@bitauth/libauth": "^3.0.0",
+    "@electrum-cash/network": "^4.4.8",
+    "@electrum-cash/web-socket": "^4.2.0",
     "@wizardconnect/core": "^0.2.5",
     "@wizardconnect/dapp": "^0.2.2",
     "cashscript": "^0.14.0",
