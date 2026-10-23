@@ -27,6 +27,18 @@ jobs:
       - run: npm run compile
       - run: npm test
       - run: npm run build
+      # Frozen pre-hackathon demo for BLAZE judges (tag v0.1-pre-blaze) at /pre-blaze/
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.1-pre-blaze
+          path: pre-blaze-src
+      - name: Build pre-BLAZE snapshot
+        run: |
+          cd pre-blaze-src
+          npm ci
+          npm run compile
+          npm run build
+          cp -r dist ../dist/pre-blaze
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
