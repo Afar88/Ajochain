@@ -1,0 +1,100 @@
+pragma cashscript ^0.14.0;
+
+// AjoChain: a rotating savings circle (Ajo / Esusu) enforced by a covenant.
+//
+// N members (2..5) each contribute `contribution` sats per round. Each round the
+// whole pot (N * contribution, minus a small capped miner fee) goes to the member
+// whose turn it is, in the fixed order m0, m1, ... No treasurer ever holds funds.
+//
+// State: the contract UTXO at input 0 holds a *mutable* CashTokens NFT of category
+// `stateCategory` whose commitment is the current round index (1 byte).
+// Contributions are plain BCH UTXOs sent to the same contract address.
+
+contract AjoCircle(
+    bytes20 m0,
+    bytes20 m1,
+    bytes20 m2,
+    bytes20 m3,
+    bytes20 m4,
+    int memberCount,
+    int contribution,
+    int maxFee,
+    bytes32 stateCategory
+) {
+    // Anyone can call this (no signature) once the contract holds >= N * contribution.
+    function payout() {
+        // Locking bytecode of this circle (P2SH32). Note: this.activeBytecode is the
+        // redeem script, so we compare against the active input's locking bytecode.
+        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
+        if (this.activeInputIndex != 0) {
+            // A contribution UTXO may only be spent alongside the circle-state UTXO,
+            // whose own input (index 0) enforces all the payout rules below.
+            require(tx.inputs[0].lockingBytecode == selfLock, "input 0 must be this circle");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "input 0 must hold the state NFT");
+            require(tx.inputs[this.activeInputIndex].tokenCategory == 0x, "contributions carry no tokens");
+        } else {
+            // ---- input 0: the circle-state UTXO ----
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT must be mutable, right category");
+            int round = int(tx.inputs[0].nftCommitment);
+            require(round >= 0);
+            require(round < memberCount, "circle already completed");
+
+            // Sum every input; all of them must belong to this circle.
+            int stateValue = tx.inputs[0].value;
+            int available = 0;
+            for (int i = 1; i < tx.inputs.length; i++) {
+                require(tx.inputs[i].lockingBytecode == selfLock, "all inputs must be circle UTXOs");
+                available = available + tx.inputs[i].value;
+            }
+            int pot = memberCount * contribution;
+            require(available >= pot, "pot not full yet");
+
+            // Output 0: state NFT goes back to the circle with round + 1.
+            require(tx.outputs[0].lockingBytecode == selfLock, "state must stay in circle");
+            require(tx.outputs[0].tokenCategory == stateCategory + 0x01, "state NFT must stay mutable");
+            require(tx.outputs[0].tokenAmount == 0);
+            require(tx.outputs[0].nftCommitment == toPaddedBytes(round + 1, 1), "round must increment by one");
+            require(tx.outputs[0].value == stateValue, "state value preserved");
+
+            // Output 1: the pot goes to the member whose turn it is.
+            bytes20 recipient = m0;
+            if (round == 1) { recipient = m1; }
+            if (round == 2) { recipient = m2; }
+            if (round == 3) { recipient = m3; }
+            if (round == 4) { recipient = m4; }
+            require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(recipient), "pot must go to this round's member");
+            require(tx.outputs[1].tokenCategory == 0x);
+            require(tx.outputs[1].value >= pot - maxFee, "recipient underpaid");
+
+            // Any surplus (e.g. early contributions for the next round) returns to the circle.
+            int surplus = available - pot;
+            if (surplus >= 1000) {
+                require(tx.outputs.length == 3, "surplus output required");
+                require(tx.outputs[2].lockingBytecode == selfLock, "surplus must return to circle");
+                require(tx.outputs[2].tokenCategory == 0x);
+                require(tx.outputs[2].value >= surplus, "surplus must be returned in full");
+            } else {
+                require(tx.outputs.length == 2, "no extra outputs");
+            }
+        }
+    }
+
+    // Emergency exit: every member signs, and together they decide where funds go.
+    // Unused member slots (index >= memberCount) are ignored.
+    function cancel(
+        pubkey pk0, sig s0,
+        pubkey pk1, sig s1,
+        pubkey pk2, sig s2,
+        pubkey pk3, sig s3,
+        pubkey pk4, sig s4
+    ) {
+        require(this.activeInputIndex == 0, "cancel runs on the state input");
+        require(tx.inputs[0].tokenCategory == stateCategory + 0x01);
+        require(hash160(pk0) == m0 && checkSig(s0, pk0));
+        require(hash160(pk1) == m1 && checkSig(s1, pk1));
+        if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }
+        if (memberCount > 3) { require(hash160(pk3) == m3 && checkSig(s3, pk3)); }
+        if (memberCount > 4) { require(hash160(pk4) == m4 && checkSig(s4, pk4)); }
+        require(memberCount >= 2 && memberCount <= 5);
+    }
+}
