@@ -98,7 +98,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 - **Cancel** needs every member's signature, and the web UI doesn't build cancel txs yet (contract + tests only).
 - **WizardConnect**: integrated with the official `@wizardconnect/core` / `@wizardconnect/dapp` packages (pairing QR, session resume, sign + broadcast for genesis and contributions). It is **not yet tested end to end against a real WizardConnect wallet**, and the dapp only uses the wallet's receive address #0. The npm metadata of `@wizardconnect/dapp` lists its license as "Proprietary" (the React package says LGPL-3.0); check this before any production use.
 - **Genesis needs a wallet coin at output #0** (CashTokens rule). If your wallet has none, send yourself a small amount first. Advanced users can mint the state NFT manually from any CashTokens wallet using the "Genesis txid" option.
-- Electrum reads use CashScript's default public servers (`chipnet.bch.ninja` for chipnet). Override in the browser console with `localStorage.setItem('ajo-electrum-chipnet', 'chipnet.imaginary.cash')`.
+- Chain reads go to public Fulcrum servers over WebSocket. For chipnet the app probes `chipnet.imaginary.cash`, `chipnet.bch.ninja` and `cbch.loping.net` in parallel and uses the first that answers. If none are reachable the circle page shows an error with a Retry button. Override in the browser console with `localStorage.setItem('ajo-electrum-chipnet', 'host:port')`.
 
 ## Roadmap
 
