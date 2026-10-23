@@ -1,0 +1,40 @@
+{
+  "name": "ajochain",
+  "version": "1.0.0",
+  "description": "AjoChain: rotating savings circles (Ajo/Esusu) enforced by a Bitcoin Cash covenant",
+  "scripts": {
+    "compile": "cashc contracts/AjoCircle.cash -o contracts/AjoCircle.json",
+    "test": "vitest run",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p ."
+  },
+  "keywords": [
+    "bitcoin-cash",
+    "cashscript",
+    "cashtokens",
+    "covenant",
+    "ajo",
+    "esusu",
+    "rosca",
+    "bch-blaze-2026"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@bitauth/libauth": "^3.0.0",
+    "@wizardconnect/core": "^0.2.5",
+    "@wizardconnect/dapp": "^0.2.2",
+    "cashscript": "^0.14.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "cashc": "^0.14.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "type": "module"
+}
