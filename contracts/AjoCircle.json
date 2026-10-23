@@ -1,0 +1,81 @@
+{
+  "contractName": "AjoCircle",
+  "constructorInputs": [
+    { "name": "m0", "type": "bytes20" },
+    { "name": "m1", "type": "bytes20" },
+    { "name": "m2", "type": "bytes20" },
+    { "name": "m3", "type": "bytes20" },
+    { "name": "m4", "type": "bytes20" },
+    { "name": "memberCount", "type": "int" },
+    { "name": "contribution", "type": "int" },
+    { "name": "maxFee", "type": "int" },
+    { "name": "stateCategory", "type": "bytes32" }
+  ],
+  "abi": [
+    { "name": "payout", "inputs": [] },
+    {
+      "name": "cancel",
+      "inputs": [
+        { "name": "pk0", "type": "pubkey" },
+        { "name": "s0", "type": "sig" },
+        { "name": "pk1", "type": "pubkey" },
+        { "name": "s1", "type": "sig" },
+        { "name": "pk2", "type": "pubkey" },
+        { "name": "s2", "type": "sig" },
+        { "name": "pk3", "type": "pubkey" },
+        { "name": "s3", "type": "sig" },
+        { "name": "pk4", "type": "pubkey" },
+        { "name": "s4", "type": "sig" }
+      ]
+    }
+  ],
+  "bytecode": "OP_9 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_INPUTINDEX OP_UTXOBYTECODE OP_INPUTINDEX OP_0 OP_NUMNOTEQUAL OP_IF OP_0 OP_UTXOBYTECODE OP_OVER OP_EQUALVERIFY OP_0 OP_UTXOTOKENCATEGORY OP_10 OP_PICK OP_1 OP_CAT OP_EQUALVERIFY OP_INPUTINDEX OP_UTXOTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_ELSE OP_0 OP_UTXOTOKENCATEGORY OP_10 OP_PICK OP_1 OP_CAT OP_EQUALVERIFY OP_0 OP_UTXOTOKENCOMMITMENT OP_BIN2NUM OP_DUP OP_0 OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP OP_8 OP_PICK OP_LESSTHAN OP_VERIFY OP_0 OP_UTXOVALUE OP_0 OP_1 OP_BEGIN OP_DUP OP_TXINPUTCOUNT OP_LESSTHAN OP_DUP OP_TOALTSTACK OP_IF OP_DUP OP_UTXOBYTECODE OP_5 OP_PICK OP_EQUALVERIFY OP_2DUP OP_UTXOVALUE OP_ADD OP_ROT OP_DROP OP_SWAP OP_1ADD OP_ENDIF OP_FROMALTSTACK OP_NOT OP_UNTIL OP_DROP OP_9 OP_PICK OP_11 OP_PICK OP_MUL OP_2DUP OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_OUTPUTBYTECODE OP_5 OP_PICK OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENCATEGORY OP_14 OP_PICK OP_1 OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENAMOUNT OP_0 OP_NUMEQUALVERIFY OP_0 OP_OUTPUTTOKENCOMMITMENT OP_4 OP_PICK OP_1ADD OP_1 OP_NUM2BIN OP_EQUALVERIFY OP_0 OP_OUTPUTVALUE OP_3 OP_PICK OP_NUMEQUALVERIFY OP_5 OP_PICK OP_4 OP_PICK OP_1 OP_NUMEQUAL OP_IF OP_7 OP_PICK OP_NIP OP_ENDIF OP_4 OP_PICK OP_2 OP_NUMEQUAL OP_IF OP_8 OP_PICK OP_NIP OP_ENDIF OP_4 OP_PICK OP_3 OP_NUMEQUAL OP_IF OP_9 OP_PICK OP_NIP OP_ENDIF OP_4 OP_PICK OP_4 OP_NUMEQUAL OP_IF OP_10 OP_PICK OP_NIP OP_ENDIF OP_1 OP_OUTPUTBYTECODE 76a914 OP_2 OP_PICK OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_1 OP_OUTPUTTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_2 OP_PICK OP_15 OP_PICK OP_SUB OP_GREATERTHANOREQUAL OP_VERIFY OP_2 OP_PICK OP_2 OP_PICK OP_SUB OP_DUP e803 OP_GREATERTHANOREQUAL OP_IF OP_TXOUTPUTCOUNT OP_3 OP_NUMEQUALVERIFY OP_2 OP_OUTPUTBYTECODE OP_7 OP_PICK OP_EQUALVERIFY OP_2 OP_OUTPUTTOKENCATEGORY OP_0 OP_EQUALVERIFY OP_2 OP_OUTPUTVALUE OP_OVER OP_GREATERTHANOREQUAL OP_VERIFY OP_ELSE OP_TXOUTPUTCOUNT OP_2 OP_NUMEQUALVERIFY OP_ENDIF OP_2DROP OP_2DROP OP_2DROP OP_ENDIF OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_DROP OP_1 OP_ELSE OP_9 OP_ROLL OP_1 OP_NUMEQUALVERIFY OP_INPUTINDEX OP_0 OP_NUMEQUALVERIFY OP_0 OP_UTXOTOKENCATEGORY OP_9 OP_ROLL OP_1 OP_CAT OP_EQUALVERIFY OP_8 OP_PICK OP_HASH160 OP_EQUAL OP_9 OP_ROLL OP_9 OP_ROLL OP_CHECKSIG OP_BOOLAND OP_VERIFY OP_7 OP_PICK OP_HASH160 OP_EQUAL OP_8 OP_ROLL OP_8 OP_ROLL OP_CHECKSIG OP_BOOLAND OP_VERIFY OP_3 OP_PICK OP_2 OP_GREATERTHAN OP_IF OP_6 OP_PICK OP_HASH160 OP_OVER OP_EQUAL OP_8 OP_PICK OP_8 OP_PICK OP_CHECKSIG OP_BOOLAND OP_VERIFY OP_ENDIF OP_3 OP_PICK OP_3 OP_GREATERTHAN OP_IF OP_8 OP_PICK OP_HASH160 OP_2 OP_PICK OP_EQUAL OP_10 OP_PICK OP_10 OP_PICK OP_CHECKSIG OP_BOOLAND OP_VERIFY OP_ENDIF OP_3 OP_PICK OP_4 OP_GREATERTHAN OP_IF OP_10 OP_PICK OP_HASH160 OP_3 OP_PICK OP_EQUAL OP_12 OP_PICK OP_12 OP_PICK OP_CHECKSIG OP_BOOLAND OP_VERIFY OP_ENDIF OP_3 OP_PICK OP_2 OP_GREATERTHANOREQUAL OP_4 OP_ROLL OP_5 OP_LESSTHANOREQUAL OP_BOOLAND OP_VERIFY OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_2DROP OP_DROP OP_1 OP_ENDIF",
+  "source": "pragma cashscript ^0.14.0;\n\n// AjoChain: a rotating savings circle (Ajo / Esusu) enforced by a covenant.\n//\n// N members (2..5) each contribute `contribution` sats per round. Each round the\n// whole pot (N * contribution, minus a small capped miner fee) goes to the member\n// whose turn it is, in the fixed order m0, m1, ... No treasurer ever holds funds.\n//\n// State: the contract UTXO at input 0 holds a *mutable* CashTokens NFT of category\n// `stateCategory` whose commitment is the current round index (1 byte).\n// Contributions are plain BCH UTXOs sent to the same contract address.\n\ncontract AjoCircle(\n    bytes20 m0,\n    bytes20 m1,\n    bytes20 m2,\n    bytes20 m3,\n    bytes20 m4,\n    int memberCount,\n    int contribution,\n    int maxFee,\n    bytes32 stateCategory\n) {\n    // Anyone can call this (no signature) once the contract holds >= N * contribution.\n    function payout() {\n        // Locking bytecode of this circle (P2SH32). Note: this.activeBytecode is the\n        // redeem script, so we compare against the active input's locking bytecode.\n        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;\n        if (this.activeInputIndex != 0) {\n            // A contribution UTXO may only be spent alongside the circle-state UTXO,\n            // whose own input (index 0) enforces all the payout rules below.\n            require(tx.inputs[0].lockingBytecode == selfLock, \"input 0 must be this circle\");\n            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, \"input 0 must hold the state NFT\");\n            require(tx.inputs[this.activeInputIndex].tokenCategory == 0x, \"contributions carry no tokens\");\n        } else {\n            // ---- input 0: the circle-state UTXO ----\n            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, \"state NFT must be mutable, right category\");\n            int round = int(tx.inputs[0].nftCommitment);\n            require(round >= 0);\n            require(round < memberCount, \"circle already completed\");\n\n            // Sum every input; all of them must belong to this circle.\n            int stateValue = tx.inputs[0].value;\n            int available = 0;\n            for (int i = 1; i < tx.inputs.length; i++) {\n                require(tx.inputs[i].lockingBytecode == selfLock, \"all inputs must be circle UTXOs\");\n                available = available + tx.inputs[i].value;\n            }\n            int pot = memberCount * contribution;\n            require(available >= pot, \"pot not full yet\");\n\n            // Output 0: state NFT goes back to the circle with round + 1.\n            require(tx.outputs[0].lockingBytecode == selfLock, \"state must stay in circle\");\n            require(tx.outputs[0].tokenCategory == stateCategory + 0x01, \"state NFT must stay mutable\");\n            require(tx.outputs[0].tokenAmount == 0);\n            require(tx.outputs[0].nftCommitment == toPaddedBytes(round + 1, 1), \"round must increment by one\");\n            require(tx.outputs[0].value == stateValue, \"state value preserved\");\n\n            // Output 1: the pot goes to the member whose turn it is.\n            bytes20 recipient = m0;\n            if (round == 1) { recipient = m1; }\n            if (round == 2) { recipient = m2; }\n            if (round == 3) { recipient = m3; }\n            if (round == 4) { recipient = m4; }\n            require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(recipient), \"pot must go to this round's member\");\n            require(tx.outputs[1].tokenCategory == 0x);\n            require(tx.outputs[1].value >= pot - maxFee, \"recipient underpaid\");\n\n            // Any surplus (e.g. early contributions for the next round) returns to the circle.\n            int surplus = available - pot;\n            if (surplus >= 1000) {\n                require(tx.outputs.length == 3, \"surplus output required\");\n                require(tx.outputs[2].lockingBytecode == selfLock, \"surplus must return to circle\");\n                require(tx.outputs[2].tokenCategory == 0x);\n                require(tx.outputs[2].value >= surplus, \"surplus must be returned in full\");\n            } else {\n                require(tx.outputs.length == 2, \"no extra outputs\");\n            }\n        }\n    }\n\n    // Emergency exit: every member signs, and together they decide where funds go.\n    // Unused member slots (index >= memberCount) are ignored.\n    function cancel(\n        pubkey pk0, sig s0,\n        pubkey pk1, sig s1,\n        pubkey pk2, sig s2,\n        pubkey pk3, sig s3,\n        pubkey pk4, sig s4\n    ) {\n        require(this.activeInputIndex == 0, \"cancel runs on the state input\");\n        require(tx.inputs[0].tokenCategory == stateCategory + 0x01);\n        require(hash160(pk0) == m0 && checkSig(s0, pk0));\n        require(hash160(pk1) == m1 && checkSig(s1, pk1));\n        if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }\n        if (memberCount > 3) { require(hash160(pk3) == m3 && checkSig(s3, pk3)); }\n        if (memberCount > 4) { require(hash160(pk4) == m4 && checkSig(s4, pk4)); }\n        require(memberCount >= 2 && memberCount <= 5);\n    }\n}\n",
+  "fingerprint": "7bb0ff69d7cf118dcd0458df0d35edb1e750b1f56875f0a53d8deaf7e593abbe",
+  "debug": {
+    "bytecode": "5979009c63c0c7c0009e6300c7788800ce5a79517e88c0ce00886700ce5a79517e8800cf817600a2697658799f6900c600516576c39f766b6376c75579886ec6937b757c8b686c91667559795b79956ea26900cd55798800d15e79517e8800d3009d00d254798b51808800cc53799d55795479519c63577977685479529c63587977685479539c63597977685479549c635a79776851cd0376a91452797e0288ac7e8851d1008851cc52795f7994a26952795279947602e803a263c4539d52cd57798852d1008852cc78a26967c4529d686d6d6d686d6d6d6d6d755167597a519dc0009d00ce597a517e885879a987597a597aac9a695779a987587a587aac9a69537952a0635679a9788758795879ac9a6968537953a0635879a95279875a795a79ac9a6968537954a0635a79a95379875c795c79ac9a6968537952a2547a55a19a696d6d6d6d6d755168",
+    "sourceMap": "25:4:80:5;;;;;28:35:28:56;:25::73:1;29:12:29:33:0;:37::38;:12:::1;:40:35:9:0;32:30:32:31;:20::48:1;:52::60:0;:12::93:1;33:30:33:31:0;:20::46:1;:50::63:0;;:66::70;:50:::1;:12::107;34:30:34:51:0;:20::66:1;:70::72:0;:12::107:1;35:15:79:9:0;37:30:37:31;:20::46:1;:50::63:0;;:66::70;:50:::1;:12::117;38:38:38:39:0;:28::54:1;:24::55;39:20:39:25:0;:29::30;:20:::1;:12::32;40:20:40:25:0;:28::39;;:20:::1;:12::69;43:39:43:40:0;:29::47:1;44:28:44:29:0;45:25:45:26;:12:48:13;:28:45:29;:32::48;:28:::1;;;:55:48:13:0;46:34:46:35;:24::52:1;:56::64:0;;:16::101:1;47:28:47:51:0;:40::58:1;:28;:16::59;;;45:50:45:53;:55:48:13;;:12;;;49:22:49:33:0;;:36::48;;:22:::1;50:20:50:36:0;::::1;:12::58;53:31:53:32:0;:20::49:1;:53::61:0;;:12::92:1;54:31:54:32:0;:20::47:1;:51::64:0;;:67::71;:51:::1;:12::104;55:31:55:32:0;:20::45:1;:49::50:0;:12::52:1;56:31:56:32:0;:20::47:1;:65::70:0;;:::74:1;:76::77:0;:51::78:1;:12::111;57:31:57:32:0;:20::39:1;:43::53:0;;:12::80:1;60:32:60:34:0;;61:16:61:21;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;62:16:62:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;63:16:63:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;64:16:64:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;65:31:65:32:0;:20::49:1;:53::88:0;:78::87;;:53::88:1;;;:12::128;66:31:66:32:0;:20::47:1;:51::53:0;:12::55:1;67:31:67:32:0;:20::39:1;:43::46:0;;:49::55;;:43:::1;:20;:12::80;70:26:70:35:0;;:38::41;;:26:::1;71:16:71:23:0;:27::31;:16:::1;:33:76:13:0;72:24:72:41;:45::46;:16::75:1;73:35:73:36:0;:24::53:1;:57::65:0;;:16::100:1;74:35:74:36:0;:24::51:1;:55::57:0;:16::59:1;75:35:75:36:0;:24::43:1;:47::54:0;:24:::1;:16::92;76:19:78:13:0;77:24:77:41;:45::46;:16::68:1;76:19:78:13;35:15:79:9;;;;25:22:80:5;;;;;;;:4;84::99::0;;;;91:16:91:37;:41::42;:8::78:1;92:26:92:27:0;:16::42:1;:46::59:0;;:62::66;:46:::1;:8::68;93:24:93:27:0;;:16::28:1;:::34;:47::49:0;;:51::54;;:38::55:1;:16;:8::57;94:24:94:27:0;;:16::28:1;:::34;:47::49:0;;:51::54;;:38::55:1;:16;:8::57;95:12:95:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;96:12:96:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;97:12:97:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;98:16:98:27:0;;:31::32;:16:::1;:36::47:0;;:51::52;:36:::1;:16;:8::54;90:6:99:5;;;;;;;13:0:100:1",
+    "logs": [],
+    "requires": [
+      { "ip": 23, "line": 32, "message": "input 0 must be this circle" },
+      { "ip": 30, "line": 33, "message": "input 0 must hold the state NFT" },
+      { "ip": 34, "line": 34, "message": "contributions carry no tokens" },
+      { "ip": 42, "line": 37, "message": "state NFT must be mutable, right category" },
+      { "ip": 49, "line": 39 },
+      { "ip": 54, "line": 40, "message": "circle already completed" },
+      { "ip": 70, "line": 46, "message": "all inputs must be circle UTXOs" },
+      { "ip": 90, "line": 50, "message": "pot not full yet" },
+      { "ip": 95, "line": 53, "message": "state must stay in circle" },
+      { "ip": 102, "line": 54, "message": "state NFT must stay mutable" },
+      { "ip": 106, "line": 55 },
+      { "ip": 114, "line": 56, "message": "round must increment by one" },
+      { "ip": 119, "line": 57, "message": "state value preserved" },
+      { "ip": 166, "line": 65, "message": "pot must go to this round's member" },
+      { "ip": 170, "line": 66 },
+      { "ip": 179, "line": 67, "message": "recipient underpaid" },
+      { "ip": 191, "line": 72, "message": "surplus output required" },
+      { "ip": 196, "line": 73, "message": "surplus must return to circle" },
+      { "ip": 200, "line": 74 },
+      { "ip": 205, "line": 75, "message": "surplus must be returned in full" },
+      { "ip": 209, "line": 77, "message": "no extra outputs" },
+      { "ip": 229, "line": 91, "message": "cancel runs on the state input" },
+      { "ip": 236, "line": 92 },
+      { "ip": 247, "line": 93 },
+      { "ip": 258, "line": 94 },
+      { "ip": 275, "line": 95 },
+      { "ip": 294, "line": 96 },
+      { "ip": 313, "line": 97 },
+      { "ip": 324, "line": 98 }
+    ],
+    "sourceTags": "68:68:fu;69:72:lc;73:73:sc;202:204:sc"
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.14.0",
+    "options": {
+      "enforceFunctionParameterTypes": true,
+      "enforceLocktimeGuard": true
+    }
+  },
+  "updatedAt": "2026-10-23T18:18:13.322Z"
+}
