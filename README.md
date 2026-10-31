@@ -7,6 +7,13 @@
 
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
+## ⏱️ How to test in 2 minutes
+
+1. **No wallet needed:** open the [live demo](https://afar88.github.io/Ajochain/). Tap **Pay 0.001** for the unpaid members, then **Pay out**, then **Try to cheat** to watch the covenant reject it (real contract, run in your browser).
+2. **Test BCH (chipnet):** in a WizardConnect wallet such as Selene, switch to chipnet and copy your `bchtest:` address. Get free coins at [tbch.googol.cash](https://tbch.googol.cash/) (pick **chipnet**).
+3. **Create a circle:** **Start a real circle** → name, amount, 2–5 `bchtest:` member addresses in payout order (yours + any second address) → **Connect wallet & start** → scan the WizardConnect QR (or **Open in wallet app**) and approve the start transaction. You get a shareable circle link.
+4. **Join & contribute:** members join by opening that link. Tap **Pay my share (wallet)** or scan the QR from any BCH wallet. When the pot is full, anyone taps **Pay out this round**.
+
 ---
 
 ## The problem
