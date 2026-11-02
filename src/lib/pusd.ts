@@ -3,7 +3,7 @@ import {
   Contract, TransactionBuilder,
   type NetworkProvider, type SpendableUtxo, type Artifact,
 } from 'cashscript';
-import { hexToBin } from '@bitauth/libauth';
+import { hexToBin, encodeCashAddress } from '@bitauth/libauth';
 import pusdArtifactJson from '../../contracts/AjoCirclePUSD.json' with { type: 'json' };
 import { addressToPkh, type CircleParams, type Net, EMPTY_PKH } from './ajo';
 
@@ -107,7 +107,7 @@ export function buildPusdPayout(
   const tokenBacking = tokenInputs.reduce((sum,u)=>sum+u.satoshis,0n);
   const tokenTotal = s.available;
   const surplus = tokenTotal - s.required;
-  const recipient = p.members[round];
+  const recipientPkh = addressToPkh(p.members[round]);\n  const recipientAddress = encodeCashAddress({ prefix: p.network === 'mainnet' ? 'bitcoincash' : 'bchtest', type: 'p2pkhWithTokens', payload: recipientPkh });\n  if (typeof recipientAddress === 'string') throw new Error('Could not derive token-aware recipient address');
   const reserve = [...s.reserveUtxos].sort((a,b)=>a.satoshis>b.satoshis?-1:a.satoshis<b.satoshis?1:0)[0];
   const reserveChangeIndex = surplus > 0n ? 3 : 2;
   const make = (change: bigint) => {
@@ -118,7 +118,7 @@ export function buildPusdPayout(
     b.addOutput({to:contract.tokenAddress,amount:s.stateUtxo!.satoshis,token:{category:p.stateCategory,amount:0n,nft:{capability:'mutable',commitment:(round+1).toString(16).padStart(2,'0')}}});
     const recipientBacking = surplus > 0n ? tokenBacking - PUSD_DUST : tokenBacking;
     if (recipientBacking < PUSD_DUST) throw new Error('PUSD token inputs do not carry enough BCH dust backing');
-    b.addOutput({to:recipient,amount:recipientBacking,token:{category,amount:s.required}});
+    b.addOutput({to:recipientAddress.address,amount:recipientBacking,token:{category,amount:s.required}});
     if (surplus > 0n) b.addOutput({to:contract.tokenAddress,amount:PUSD_DUST,token:{category,amount:surplus}});
     b.addOutput({to:contract.address,amount:change});
     return b;
@@ -128,5 +128,5 @@ export function buildPusdPayout(
   const fee = BigInt(Math.ceil((draft.length / 2) * feeRate)) + 10n;
   const change = reserve.satoshis - fee;
   if (change < PUSD_DUST) throw new Error('BCH fee reserve is too small for this payout');
-  return {builder:make(change),fee,recipient,tokenAmount:s.required,round};
+  return {builder:make(change),fee,recipient:p.members[round],tokenAmount:s.required,round};
 }
