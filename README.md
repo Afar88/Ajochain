@@ -96,13 +96,13 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Tests
 
-`npm test` runs the BCH and PUSD suites (31 tests total), all on `MockNetworkProvider` with full VM validation:
+`npm test` runs the BCH, PUSD, and browser-demo suites (41 tests total), all on `MockNetworkProvider` with full VM validation:
 
 - Happy path: a full 5-round circle paying each member in order, a 2-member circle, uneven contribution sizes, surplus returned to the circle (3rd output), early contributions left for the next round, payout refused before the pot is full or after the circle completes.
 - Attacks rejected (each asserts the specific `require` that fires): paying the wrong member, paying an outsider, not incrementing the round, underpaying the recipient (fee > maxFee), skimming an extra output, moving the state NFT out of the circle, spending contributions without the state UTXO, a fake state NFT of another category, an immutable NFT as state, mixing in outside inputs.
 - Cancel: works with all member signatures and fails with one wrong signer.
 - Helpers: share-link round trip and parameter validation; the in-browser demo flow end to end.
-- PUSD: three-round token payouts, wrong-category rejection, one-unit shortfall, wrong recipient, skipped round, surplus theft, and non-member cancellation rejection.
+- PUSD: five-round token payouts, wrong-category rejection, one-unit shortfall, wrong recipient, skipped round, surplus theft, state-NFT token contamination rejection, unanimous multi-input cancellation, and non-member cancellation rejection.
 
 ## Limitations (honest list)
 
@@ -117,7 +117,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Roadmap
 
-- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental PUSD covenant and mock-provider attack tests are now included; production integration and independent audit remain outstanding.
+- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental PUSD covenant and mock-provider transaction tests are included, including a unanimous multi-input cancellation path; production wallet/UI integration, real-chain testing, and independent audit remain outstanding.
 - **Collateral / late-payer penalties**: members lock a deposit that's slashed if they skip a round after being paid.
 - **Per-member contribution receipts**: small NFTs per payment so the app can show *who* paid each round.
 - **Timed rounds** (`tx.time`), cancel builder in the UI, more members via merkle proofs, Naira price display, WhatsApp share links.
