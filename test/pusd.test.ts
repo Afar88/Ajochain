@@ -43,7 +43,7 @@ function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=
   const b=new TransactionBuilder({provider});
   b.addInput(st,contract.unlock.payout());
   b.addInputs(inputs,contract.unlock.payout());
-  b.addOutput({to:contract.tokenAddress,amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:nextRound.toString(16).padStart(2,'0')}}});
+  b.addOutput({to:contract.tokenAddress,amount:INPUT_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:nextRound.toString(16).padStart(2,'0')}}});
   b.addOutput({to:tokenAddress(recipient.pkh),amount:DUST,token:{category:PUSD,amount:paid}});
   if (surplus>0n) b.addOutput({to:contract.tokenAddress,amount:DUST,token:{category:PUSD,amount:surplus}});
   return b;
@@ -67,14 +67,14 @@ describe('AjoCirclePUSD',()=>{
   });
 
   it('rejects a contribution using the wrong token category',async()=>{
-    const st=state(0), bad=token('cd'.repeat(32),300n);
+    const st=randomUtxo({satoshis:3500n,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}}), bad=randomUtxo({satoshis:3500n,token:{category:'cd'.repeat(32),amount:300n}});
     provider.addUtxo(contract.address,st);
     provider.addUtxo(contract.address,bad);
     const all=await contract.getUtxos();
     const stateInput=all.find(u=>u.token?.category===STATE)!;
     const badInput=all.find(u=>u.token?.category==='cd'.repeat(32))!;
     const b=new TransactionBuilder({provider}).addInput(stateInput,contract.unlock.payout()).addInput(badInput,contract.unlock.payout())
-      .addOutput({to:contract.tokenAddress,amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
+      .addOutput({to:contract.tokenAddress,amount:3500n,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
       .addOutput({to:tokenAddress(members[0].pkh),amount:DUST,token:{category:'cd'.repeat(32),amount:300n}});
     await expect(b.send()).rejects.toThrow(/contribution must be PUSD/);
   });
@@ -101,7 +101,7 @@ describe('AjoCirclePUSD',()=>{
     await fundRound(0,[150n,100n,100n]);
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
     const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInputs(ins,contract.unlock.payout())
-      .addOutput({to:contract.tokenAddress,amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
+      .addOutput({to:contract.tokenAddress,amount:INPUT_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
       .addOutput({to:tokenAddress(members[0].pkh),amount:DUST,token:{category:PUSD,amount:300n}})
       .addOutput({to:tokenAddress(outsider.pkh),amount:DUST,token:{category:PUSD,amount:50n}});
     await expect(b.send()).rejects.toThrow(/PUSD surplus must return to circle/);
