@@ -17,6 +17,12 @@ jobs:
       - run: npm ci
       - name: Compile CashScript contract
         run: npm run compile
+      - name: Upload compiled BCH covenant artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-bch-covenant
+          path: contracts/AjoCircle.json
+          if-no-files-found: error
       - name: Run tests
         run: npm test
       - name: Typecheck
