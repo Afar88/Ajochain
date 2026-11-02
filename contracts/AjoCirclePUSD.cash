@@ -23,7 +23,11 @@ contract AjoCirclePUSD(
                 require(tx.inputs[this.activeInputIndex].tokenAmount == 0, "BCH reserve cannot contain tokens");
             }
         } else {
+            require(stateCategory != pusdCategory, "state and PUSD categories must differ");
+            require(memberCount >= 2 && memberCount <= 5, "member count must be 2-5");
+            require(contribution > 0, "contribution must be positive");
             require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT must be mutable, right category");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
             int round = int(tx.inputs[0].nftCommitment);
             require(round >= 0 && round < memberCount, "circle already completed");
 
