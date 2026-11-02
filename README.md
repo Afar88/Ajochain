@@ -2,18 +2,21 @@
 
 **Rotating savings circles (Ajo / Esusu) enforced by a Bitcoin Cash covenant. No treasurer holds the money.**
 
-🔗 **Live demo:** https://afar88.github.io/Ajochain/ (chipnet by default; the landing page runs a prefilled demo circle in your browser)
+🔗 **Live app:** https://afar88.github.io/Ajochain/ (Chipnet by default; create and manage BCH circles, with experimental PUSD support)
 🏁 Built for **BCH BLAZE 2026** (DoraHacks)
 
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
-## ⏱️ How to test in 2 minutes
+## Getting started
 
-1. **No wallet needed:** open the [live demo](https://afar88.github.io/Ajochain/). Tap **Pay 0.001** for the unpaid members, then **Pay out**, then **Try to cheat** to watch the covenant reject it (real contract, run in your browser).
-2. **Test BCH (chipnet):** in a WizardConnect wallet such as Selene, switch to chipnet and copy your `bchtest:` address. Get free coins at [tbch.googol.cash](https://tbch.googol.cash/) (pick **chipnet**).
-3. **Create a circle:** **Start a real circle** → name, amount, 2–5 `bchtest:` member addresses in payout order (yours + any second address) → **Connect wallet & start** → scan the WizardConnect QR (or **Open in wallet app**) and approve the start transaction. You get a shareable circle link.
-4. **Join & contribute:** members join by opening that link. Tap **Pay my share (wallet)** or scan the QR from any BCH wallet. When the pot is full, anyone taps **Pay out this round**.
+1. Open the [AjoChain app](https://afar88.github.io/Ajochain/).
+2. Leave the network on **Chipnet** for testing. Connect a WizardConnect-enabled BCH wallet.
+3. Choose **Create**, select BCH or experimental PUSD, and enter the circle details and member payout order.
+4. Approve the creation transaction in your wallet. Share the generated circle link with members.
+5. Members contribute to the circle address. When the pot is full, anyone can trigger the scheduled payout.
+6. Open **My circles** to return to circles saved in this browser.
 
+For Chipnet BCH, obtain test coins from a Chipnet faucet such as [tbch.googol.cash](https://tbch.googol.cash/). PUSD is experimental and remains Chipnet-only. Never enter or share a seed phrase or private key with AjoChain.
 ---
 
 
@@ -75,9 +78,9 @@ Constructor: `m0..m4` (member pubkey hashes, unused slots zero), `memberCount` (
 
 ### Web app: [`web/`](web/)
 
-Static Vite + TypeScript app, mobile-first, deployable to GitHub Pages. No backend.
+Static Vite + TypeScript app, mobile-first, deployable to GitHub Pages or Vercel. No backend.
 
-- **Landing = demo circle**: "Mama Nkechi's Market Circle", 5 members, 3 already paid in. Tap to pay in, then **Pay out**. This runs the **real compiled covenant** in your browser against CashScript's `MockNetworkProvider`, which evaluates every transaction in the BCH VM. **Try to cheat** sends the pot to the wrong member and shows the contract rejecting it.
+- **Landing page**: product overview with direct BCH and PUSD creation paths; the former interactive demo has been removed from the user-facing experience.
 - **Create**: name, amount, 2–5 member addresses in payout order → connect a wallet via **WizardConnect** → the app builds the genesis tx and the wallet signs and broadcasts it → you get a shareable circle link (all params encoded in the URL hash; nothing stored server-side).
 - **Circle page**: contract address + BIP21 QR to contribute, members, round tracker, pot balance (read from a public Fulcrum/Electrum server through `cashscript`'s `ElectrumNetworkProvider`), **Pay out this round** (keyless covenant tx broadcast straight to Electrum), and **Pay my share** via WizardConnect.
 - **Network toggle**: chipnet (default) / mainnet (with a warning).
