@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, randomUtxo } from 'cashscript';
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
-import { buildPusdPayout, pusdStatus, type PusdCircleParams } from '../src/lib/pusd';
+import { buildPusdPayout, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
 
 const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 const STATE = 'ab'.repeat(32);
@@ -66,6 +66,11 @@ beforeEach(() => {
 });
 
 describe('AjoCirclePUSD',()=>{
+  it('blocks PUSD use on mainnet until audited',()=>{
+    const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
+    expect(()=>validatePusdParams({name:'mainnet blocked',network:'mainnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:PUSD})).toThrow(/Chipnet-only/);
+  });
+
   it('pays the full PUSD pot to all five members over five rounds',async()=>{
     for(let r=0;r<5;r++){
       await fundRound(r);
