@@ -4,17 +4,12 @@ const VALID_NETWORKS = new Set(['chipnet', 'mainnet']);
 
 function safeNetwork() {
   const saved = localStorage.getItem('ajo-net');
-  if (!VALID_NETWORKS.has(saved || '')) {
-    localStorage.setItem('ajo-net', 'chipnet');
-    return 'chipnet';
-  }
-  return saved!;
+  if (!VALID_NETWORKS.has(saved || '')) localStorage.setItem('ajo-net', 'chipnet');
 }
 
-// Keep persisted network state valid. Invalid/stale values must never break the app on boot.
 safeNetwork();
 
-// Fix legacy/alternate PUSD routes and make the SPA recover from malformed hashes.
+// Recover legacy/alternate PUSD routes and keep old bookmarks working.
 function normalizeHash() {
   const hash = location.hash;
   if (hash === '#/pusd/create' || hash === '#/create?asset=pusd' || hash === '#/create/?asset=pusd') {
@@ -23,30 +18,21 @@ function normalizeHash() {
   }
 }
 
-// Add interaction safety without changing the contract flow: prevent accidental double
-// clicks while a transaction is being approved, and restore controls after navigation.
+// Prevent accidental double taps without interfering with the app's async transaction state.
 function hardenButtons(root: ParentNode = document) {
   root.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
     if (button.dataset.hardened === '1') return;
     button.dataset.hardened = '1';
-    button.addEventListener('click', () => {
-      if (button.disabled || button.dataset.busy === '1') return;
-      const label = button.textContent?.trim() || '';
-      if (!/pay|contribut|start|create/i.test(label)) return;
-      button.dataset.busy = '1';
-      button.dataset.originalText = label;
-      button.disabled = true;
-      button.textContent = /pay/i.test(label) ? 'Processing…' : 'Preparing…';
-      window.setTimeout(() => {
-        // A transaction can take longer than this, but this only releases the UI guard;
-        // the wallet/contract layer remains responsible for the actual transaction state.
-        if (button.isConnected) {
-          button.disabled = false;
-          button.dataset.busy = '0';
-          button.textContent = button.dataset.originalText || label;
-        }
-      }, 30000);
-    });
+    let lastClick = 0;
+    button.addEventListener('click', (event) => {
+      const now = Date.now();
+      if (now - lastClick < 900) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      lastClick = now;
+    }, true);
   });
 
   root.querySelectorAll<HTMLElement>('.err, .note').forEach((el) => {
@@ -57,20 +43,19 @@ function hardenButtons(root: ParentNode = document) {
 
 function installAccessibility() {
   const modal = document.querySelector<HTMLElement>('#modal');
-  if (modal) {
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && modal.classList.contains('show')) {
-        modal.classList.remove('show');
-        if (wallet.state !== 'connected') wallet.disconnect();
-      }
-    });
-    modal.addEventListener('click', (event) => {
-      if (event.target === modal) {
-        modal.classList.remove('show');
-        if (wallet.state !== 'connected') wallet.disconnect();
-      }
-    });
-  }
+  if (!modal) return;
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('show')) {
+      modal.classList.remove('show');
+      if (wallet.state !== 'connected') wallet.disconnect();
+    }
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      modal.classList.remove('show');
+      if (wallet.state !== 'connected') wallet.disconnect();
+    }
+  });
 }
 
 function observeApp() {
