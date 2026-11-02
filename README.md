@@ -66,7 +66,7 @@ Constructor: `m0..m4` (member pubkey hashes, unused slots zero), `memberCount` (
   - holds a **mutable** NFT of the pinned `stateCategory`; `round = commitment`, and `round < memberCount`
   - **every** input is a UTXO of this circle (so the pot can't be faked with outside coins), and their sum (excluding the state UTXO) is `≥ memberCount × contribution`
   - output 0 returns the state NFT to the circle, same value, same category, still mutable, `commitment == round + 1`
-  - output 1 pays `member[round]` (P2PKH), with the miner fee capped by `maxFee`; no tokens
+  - output 1 pays `member[round]` (P2PKH), with the miner fee capped by `maxFee`, which must leave at least 1,000 sats for a dust-safe recipient output; no tokens
   - any surplus ≥ 1000 sats must go back to the circle in output 2. A surplus below 1000 sats cannot form a dust-safe change output, so it is paid to the recipient; otherwise exactly 2 outputs. No extra outputs.
 
 **`cancel(pk0, s0, …, pk4, s4)`**: an emergency exit. **All** `memberCount` members sign, and together they decide where the funds go (no output restrictions).
