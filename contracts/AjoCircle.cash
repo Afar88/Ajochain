@@ -47,6 +47,7 @@ contract AjoCircle(
                 available = available + tx.inputs[i].value;
             }
             int pot = memberCount * contribution;
+            require(maxFee >= 0 && maxFee < pot, "maxFee must be less than pot");
             require(available >= pot, "pot not full yet");
 
             // Output 0: state NFT goes back to the circle with round + 1.
@@ -64,10 +65,14 @@ contract AjoCircle(
             if (round == 4) { recipient = m4; }
             require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(recipient), "pot must go to this round's member");
             require(tx.outputs[1].tokenCategory == 0x);
-            require(tx.outputs[1].value >= pot - maxFee, "recipient underpaid");
+            // When the selected inputs leave a tiny surplus (<1000 sats), there is
+            // no change output: protect that value by including it in the recipient payment.
+            int minimumPayment = pot - maxFee;
+            int surplus = available - pot;
+            if (surplus < 1000) { minimumPayment = available - maxFee; }
+            require(tx.outputs[1].value >= minimumPayment, "recipient underpaid");
 
             // Any surplus (e.g. early contributions for the next round) returns to the circle.
-            int surplus = available - pot;
             if (surplus >= 1000) {
                 require(tx.outputs.length == 3, "surplus output required");
                 require(tx.outputs[2].lockingBytecode == selfLock, "surplus must return to circle");
