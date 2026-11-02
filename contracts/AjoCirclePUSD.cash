@@ -33,7 +33,7 @@ contract AjoCirclePUSD(
                     tokenPot = tokenPot + tx.inputs[i].tokenAmount;
                     tokenBchIn = tokenBchIn + tx.inputs[i].value;
                 } else {
-                    require(tx.inputs[i].tokenCategory == 0x00, "fee reserve must be BCH-only");
+                    require(tx.inputs[i].tokenCategory == 0x, "fee reserve must be BCH-only");
                     require(tx.inputs[i].tokenAmount == 0, "fee reserve cannot contain tokens");
                     reserveBchIn = reserveBchIn + tx.inputs[i].value;
                 }
@@ -77,7 +77,7 @@ contract AjoCirclePUSD(
             // separately supplied token-free BCH reserve can pay miner fees.
             require(tokenBchOut >= tokenBchIn, "PUSD BCH backing must be preserved");
             require(tx.outputs[reserveChangeIndex].lockingBytecode == selfLock, "unused BCH reserve must return to circle");
-            require(tx.outputs[reserveChangeIndex].tokenCategory == 0x00, "BCH reserve change cannot contain tokens");
+            require(tx.outputs[reserveChangeIndex].tokenCategory == 0x, "BCH reserve change cannot contain tokens");
             require(tx.outputs[reserveChangeIndex].tokenAmount == 0, "BCH reserve change cannot contain tokens");
             require(tx.outputs[reserveChangeIndex].value >= 1000, "BCH reserve change needs dust");
 
