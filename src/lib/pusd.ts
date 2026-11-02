@@ -107,7 +107,9 @@ export function buildPusdPayout(
   const tokenBacking = tokenInputs.reduce((sum,u)=>sum+u.satoshis,0n);
   const tokenTotal = s.available;
   const surplus = tokenTotal - s.required;
-  const recipientPkh = addressToPkh(p.members[round]);\n  const recipientAddress = encodeCashAddress({ prefix: p.network === 'mainnet' ? 'bitcoincash' : 'bchtest', type: 'p2pkhWithTokens', payload: recipientPkh });\n  if (typeof recipientAddress === 'string') throw new Error('Could not derive token-aware recipient address');
+  const recipientPkh = addressToPkh(p.members[round]);
+  const recipientAddress = encodeCashAddress({ prefix: p.network === 'mainnet' ? 'bitcoincash' : 'bchtest', type: 'p2pkhWithTokens', payload: recipientPkh });
+  if (typeof recipientAddress === 'string') throw new Error('Could not derive token-aware recipient address');
   const reserve = [...s.reserveUtxos].sort((a,b)=>a.satoshis>b.satoshis?-1:a.satoshis<b.satoshis?1:0)[0];
   const reserveChangeIndex = surplus > 0n ? 3 : 2;
   const make = (change: bigint) => {
