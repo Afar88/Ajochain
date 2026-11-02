@@ -110,6 +110,21 @@ describe('AjoCircle covenant: happy path', () => {
     expect(() => buildPayout(p, contract, s.stateUtxo ? [s.stateUtxo] : [], provider)).toThrow(/completed/);
   });
 
+  it('rejects a maxFee that is equal to or greater than the pot', () => {
+    const invalid = { ...params(2), maxFee: 200_000n };
+    expect(() => circleContract(invalid, provider)).toThrow(/maxFee must be less than the circle pot/);
+  });
+
+  it('pays tiny input surplus to the recipient instead of miner fees', async () => {
+    await contribute(4);
+    await contribute(1, C + 500n);
+    const r = buildPayout(p, contract, await utxos(), provider);
+    expect(r.amount).toBe(5n * C + 500n - r.fee);
+    await r.builder.send();
+    const paid = await provider.getUtxos(p.members[0]);
+    expect(paid.reduce((sum, u) => sum + u.satoshis, 0n)).toBe(r.amount);
+  });
+
   it('works for a 2-member circle', async () => {
     provider = new MockNetworkProvider();
     p = params(2);
