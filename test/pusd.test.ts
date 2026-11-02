@@ -6,7 +6,8 @@ import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' }
 const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 const STATE = 'ab'.repeat(32);
 const DUST = 1000n;
-const INPUT_SATS = 2500n;
+const STATE_SATS = 1000n;
+const TOKEN_SATS = 1500n;
 const C = 100n;
 const members = [1,2,3].map(i => {
   const priv = new Uint8Array(32); priv[31] = i;
@@ -28,10 +29,10 @@ function BufferlessHex(s:string) { return Uint8Array.from(s.match(/.{2}/g)!.map(
 let provider: MockNetworkProvider;
 let contract: Contract;
 function state(round:number) {
-  return randomUtxo({satoshis:INPUT_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:round.toString(16).padStart(2,'0')}}});
+  return randomUtxo({satoshis:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:round.toString(16).padStart(2,'0')}}});
 }
 function token(category=PUSD, amount=100n) {
-  return randomUtxo({satoshis:INPUT_SATS,token:{category,amount}});
+  return randomUtxo({satoshis:TOKEN_SATS,token:{category,amount}});
 }
 async function fundRound(round:number, amounts=[C,C,C]) {
   // The first state NFT is seeded once; later rounds spend the NFT returned by
@@ -43,7 +44,7 @@ function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=
   const b=new TransactionBuilder({provider});
   b.addInput(st,contract.unlock.payout());
   b.addInputs(inputs,contract.unlock.payout());
-  b.addOutput({to:contract.tokenAddress,amount:INPUT_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:nextRound.toString(16).padStart(2,'0')}}});
+  b.addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:nextRound.toString(16).padStart(2,'0')}}});
   b.addOutput({to:tokenAddress(recipient.pkh),amount:DUST,token:{category:PUSD,amount:paid}});
   if (surplus>0n) b.addOutput({to:contract.tokenAddress,amount:DUST,token:{category:PUSD,amount:surplus}});
   return b;
