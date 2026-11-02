@@ -143,7 +143,8 @@ export function circleStatus(p: CircleParams, utxos: SpendableUtxo[]): CircleSta
 
 /**
  * Build the keyless payout transaction. Nobody signs: the covenant itself decides
- * where the money may go. The miner fee is taken from the pot (capped by maxFee).
+ * where the money may go. The fee is capped by maxFee; any sub-dust surplus is
+ * included in the recipient's payout instead of being consumed as extra fee.
  */
 export function buildPayout(
   p: CircleParams,
