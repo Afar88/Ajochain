@@ -57,6 +57,9 @@ export function pkhToAddress(pkh: Uint8Array, network: Net): string {
 }
 
 export function validateParams(p: CircleParams): void {
+  if (typeof p.name !== 'string' || !p.name.trim()) throw new Error('Circle name is required');
+  if (p.network !== 'chipnet' && p.network !== 'mainnet') throw new Error('Invalid network');
+  if (!Array.isArray(p.members)) throw new Error('Members must be an array');
   if (p.members.length < MIN_MEMBERS || p.members.length > MAX_MEMBERS) {
     throw new Error(`A circle needs ${MIN_MEMBERS}-${MAX_MEMBERS} members`);
   }
@@ -211,12 +214,39 @@ export function encodeCircle(p: CircleParams): string {
 }
 
 export function decodeCircle(s: string): CircleParams {
+  if (typeof s !== 'string' || !s || !/^[A-Za-z0-9_-]+$/.test(s)) {
+    throw new Error('Invalid circle link encoding');
+  }
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
-  const o = JSON.parse(decodeURIComponent(escape(atob(b64))));
-  return {
-    name: o.n, network: o.net, members: o.m, contribution: BigInt(o.c),
-    maxFee: BigInt(o.f), stateCategory: o.k,
+  let o: any;
+  try {
+    o = JSON.parse(decodeURIComponent(escape(atob(b64))));
+  } catch {
+    throw new Error('Invalid circle link data');
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('Invalid circle link data');
+  if (typeof o.n !== 'string' || (o.net !== 'chipnet' && o.net !== 'mainnet')) {
+    throw new Error('Invalid circle details');
+  }
+  if (!Array.isArray(o.m) || !o.m.every((m: unknown) => typeof m === 'string')) {
+    throw new Error('Invalid circle members');
+  }
+  let contribution: bigint;
+  let maxFee: bigint;
+  try {
+    if (typeof o.c !== 'string' || !/^[0-9]+$/.test(o.c)) throw new Error();
+    if (typeof o.f !== 'string' || !/^[0-9]+$/.test(o.f)) throw new Error();
+    contribution = BigInt(o.c);
+    maxFee = BigInt(o.f);
+  } catch {
+    throw new Error('Invalid circle amounts');
+  }
+  const params: CircleParams = {
+    name: o.n, network: o.net, members: o.m, contribution,
+    maxFee, stateCategory: o.k,
   };
+  validateParams(params);
+  return params;
 }
 
 export { binToHex, hexToBin };
