@@ -6,11 +6,13 @@
   <title>AjoChain · Rotating savings circles on Bitcoin Cash</title>
   <meta name="description" content="Ajo savings circles enforced by Bitcoin Cash covenants. No treasurer holds the money." />
   <meta name="theme-color" content="#7a2e12" />
+  <meta name="color-scheme" content="light" />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to content</a>
   <div class="kente" aria-hidden="true"></div>
   <header id="hdr"></header>
   <nav aria-label="Primary navigation">
@@ -18,9 +20,12 @@
     <a href="#/create">Create</a>
     <a href="#/mine">My circles</a>
   </nav>
-  <main id="app"></main>
-  <footer>AjoChain · BCH BLAZE 2026 hackathon MVP · unaudited · <a href="https://github.com/Afar88/Ajochain">Source</a></footer>
-  <div id="modal" class="modal"></div>
+  <main id="app" tabindex="-1"></main>
+  <footer>AjoChain · BCH BLAZE 2026 hackathon MVP · unaudited · <a href="https://github.com/Afar88/Ajochain" target="_blank" rel="noopener noreferrer">Source</a></footer>
+  <div id="modal" class="modal" aria-hidden="true"></div>
+  <script type="module" src="./src/audit.ts"></script>
   <script type="module" src="./src/main.ts"></script>
+  <link rel="stylesheet" href="./src/audit.css" />
+  <noscript>AjoChain needs JavaScript enabled to create and manage savings circles.</noscript>
 </body>
 </html>
