@@ -21,7 +21,7 @@
 
 AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
 
-PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output, preserves the state UTXO's BCH value, and caps the remaining BCH miner fee at `maxFee`. This is a separate experimental contract; the BCH-only `AjoCircle.cash` is unchanged. Tests use CashScript's MockNetworkProvider only. **Unaudited; do not use with mainnet funds.**
+PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. Tests use CashScript's MockNetworkProvider only. **Unaudited; do not use with mainnet funds.**
 
 ## The problem
 
