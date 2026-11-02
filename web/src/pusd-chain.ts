@@ -3,7 +3,9 @@ import {
   TransactionBuilder, placeholderP2PKHUnlocker,
   type SpendableUtxo,
 } from 'cashscript';
-import { getProvider } from './chain';\nimport { encodeCashAddress } from '@bitauth/libauth';\nimport { addressToPkh } from '../../src/lib/ajo';
+import { getProvider } from './chain';
+import { encodeCashAddress } from '@bitauth/libauth';
+import { addressToPkh } from '../../src/lib/ajo';
 import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../src/lib/pusd';
 import { encodeRound, type Net } from '../src/lib/ajo';
 
@@ -77,7 +79,8 @@ export async function planPusdContribution(
   const b=new TransactionBuilder({provider});
   for(const u of pickedTokens) b.addInput(u,placeholderP2PKHUnlocker(walletAddress));
   for(const u of bchInputs) b.addInput(u,placeholderP2PKHUnlocker(walletAddress));
-  b.addOutput({to:contract.tokenAddress,amount:tokenBacking,token:{category:params.pusdCategory??PUSD_CATEGORY,amount:params.contribution}});
+  b.addOutput({to:contract.tokenAddress,amount:hasTokenChange?tokenBacking-PUSD_DUST:tokenBacking,token:{category:params.pusdCategory??PUSD_CATEGORY,amount:params.contribution}});
+  if(hasTokenChange) b.addOutput({to:walletTokenAddress.address,amount:PUSD_DUST,token:{category:params.pusdCategory??PUSD_CATEGORY,amount:tokenChange}});
   b.addOutput({to:contract.address,amount:reserveSats});
   if(change>=546n) b.addOutput({to:walletAddress,amount:change});
   const walletInputs=Array.from({length:pickedTokens.length+bchInputs.length},(_,i)=>i);
