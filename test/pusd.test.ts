@@ -151,9 +151,11 @@ describe('AjoCirclePUSD',()=>{
     const inputs=all.filter(u=>u.token?.category===PUSD);
     const sigArgs=members.flatMap(k=>[k.pub,k.sig]);
     const unlock=(contract.unlock as any).cancel(...sigArgs);
-    const b=new TransactionBuilder({provider}).addInput(st,unlock).addInputs(inputs,unlock)
+    const reserve=await feeReserveUtxo();
+    const b=new TransactionBuilder({provider}).addInput(st,unlock).addInputs(inputs,unlock).addInput(reserve,unlock)
       .addOutput({to:tokenAddress(outsider.pkh),amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}})
-      .addOutput({to:tokenAddress(outsider.pkh),amount:5n*TOKEN_SATS-DUST,token:{category:PUSD,amount:5n*C}});
+      .addOutput({to:tokenAddress(outsider.pkh),amount:5n*TOKEN_SATS,token:{category:PUSD,amount:5n*C}})
+      .addOutput({to:tokenAddress(outsider.pkh),amount:10_000n});
     await b.send();
     const recovered=await provider.getUtxos(tokenAddress(outsider.pkh));
     expect(recovered.reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(5n*C);
