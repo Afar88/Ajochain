@@ -1,31 +1,91 @@
 {
   "contractName": "AjoCircle",
   "constructorInputs": [
-    { "name": "m0", "type": "bytes20" },
-    { "name": "m1", "type": "bytes20" },
-    { "name": "m2", "type": "bytes20" },
-    { "name": "m3", "type": "bytes20" },
-    { "name": "m4", "type": "bytes20" },
-    { "name": "memberCount", "type": "int" },
-    { "name": "contribution", "type": "int" },
-    { "name": "maxFee", "type": "int" },
-    { "name": "stateCategory", "type": "bytes32" }
+    {
+      "name": "m0",
+      "type": "bytes20"
+    },
+    {
+      "name": "m1",
+      "type": "bytes20"
+    },
+    {
+      "name": "m2",
+      "type": "bytes20"
+    },
+    {
+      "name": "m3",
+      "type": "bytes20"
+    },
+    {
+      "name": "m4",
+      "type": "bytes20"
+    },
+    {
+      "name": "memberCount",
+      "type": "int"
+    },
+    {
+      "name": "contribution",
+      "type": "int"
+    },
+    {
+      "name": "maxFee",
+      "type": "int"
+    },
+    {
+      "name": "stateCategory",
+      "type": "bytes32"
+    }
   ],
   "abi": [
-    { "name": "payout", "inputs": [] },
+    {
+      "name": "payout",
+      "inputs": []
+    },
     {
       "name": "cancel",
       "inputs": [
-        { "name": "pk0", "type": "pubkey" },
-        { "name": "s0", "type": "sig" },
-        { "name": "pk1", "type": "pubkey" },
-        { "name": "s1", "type": "sig" },
-        { "name": "pk2", "type": "pubkey" },
-        { "name": "s2", "type": "sig" },
-        { "name": "pk3", "type": "pubkey" },
-        { "name": "s3", "type": "sig" },
-        { "name": "pk4", "type": "pubkey" },
-        { "name": "s4", "type": "sig" }
+        {
+          "name": "pk0",
+          "type": "pubkey"
+        },
+        {
+          "name": "s0",
+          "type": "sig"
+        },
+        {
+          "name": "pk1",
+          "type": "pubkey"
+        },
+        {
+          "name": "s1",
+          "type": "sig"
+        },
+        {
+          "name": "pk2",
+          "type": "pubkey"
+        },
+        {
+          "name": "s2",
+          "type": "sig"
+        },
+        {
+          "name": "pk3",
+          "type": "pubkey"
+        },
+        {
+          "name": "s3",
+          "type": "sig"
+        },
+        {
+          "name": "pk4",
+          "type": "pubkey"
+        },
+        {
+          "name": "s4",
+          "type": "sig"
+        }
       ]
     }
   ],
@@ -37,36 +97,145 @@
     "sourceMap": "25:4:84:5;;;;;28:35:28:56;:25::73:1;29:12:29:33:0;:37::38;:12:::1;:40:35:9:0;32:30:32:31;:20::48:1;:52::60:0;:12::93:1;33:30:33:31:0;:20::46:1;:50::63:0;;:66::70;:50:::1;:12::107;34:30:34:51:0;:20::66:1;:70::72:0;:12::107:1;35:15:83:9:0;37:30:37:31;:20::46:1;:50::63:0;;:66::70;:50:::1;:12::117;38:38:38:39:0;:28::54:1;:24::55;39:20:39:25:0;:29::30;:20:::1;:12::32;40:20:40:25:0;:28::39;;:20:::1;:12::69;43:39:43:40:0;:29::47:1;44:28:44:29:0;45:25:45:26;:12:48:13;:28:45:29;:32::48;:28:::1;;;:55:48:13:0;46:34:46:35;:24::52:1;:56::64:0;;:16::101:1;47:28:47:51:0;:40::58:1;:28;:16::59;;;45:50:45:53;:55:48:13;;:12;;;49:22:49:33:0;;:36::48;;:22:::1;50:20:50:26:0;;:30::31;:20:::1;:35::41:0;;:45::48;;:51::55;:45:::1;:35;:20;:12::111;51:20:51:36:0;::::1;:12::58;54:31:54:32:0;:20::49:1;:53::61:0;;:12::92:1;55:31:55:32:0;:20::47:1;:51::64:0;;:67::71;:51:::1;:12::104;56:31:56:32:0;:20::45:1;:49::50:0;:12::52:1;57:31:57:32:0;:20::47:1;:65::70:0;;:::74:1;:76::77:0;:51::78:1;:12::111;58:31:58:32:0;:20::39:1;:43::53:0;;:12::80:1;61:32:61:34:0;;62:16:62:21;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;63:16:63:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;64:16:64:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;65:16:65:21:0;;:25::26;:16:::1;:28::47:0;:42::44;;:30::45:1;:28::47;66:31:66:32:0;:20::49:1;:53::88:0;:78::87;;:53::88:1;;;:12::128;67:31:67:32:0;:20::47:1;:51::53:0;:12::55:1;69:33:69:36:0;:39::45;;:33:::1;70:26:70:41:0;::::1;71:16:71:23:0;:26::30;:16:::1;:32::72:0;:51::60;;:63::69;;:51:::1;:34::70;;;:32::72;72:31:72:32:0;:20::39:1;:43::57:0;;:20:::1;:12::82;75:16:75:23:0;:27::31;:16:::1;:33:80:13:0;76:24:76:41;:45::46;:16::75:1;77:35:77:36:0;:24::53:1;:57::65:0;;:16::100:1;78:35:78:36:0;:24::51:1;:55::57:0;:16::59:1;79:35:79:36:0;:24::43:1;:47::54:0;:24:::1;:16::92;80:19:82:13:0;81:24:81:41;:45::46;:16::68:1;80:19:82:13;35:15:83:9;;;;;25:22:84:5;;;;;;;:4;88::103::0;;;;95:16:95:37;:41::42;:8::78:1;96:26:96:27:0;:16::42:1;:46::59:0;;:62::66;:46:::1;:8::68;97:24:97:27:0;;:16::28:1;:::34;:47::49:0;;:51::54;;:38::55:1;:16;:8::57;98:24:98:27:0;;:16::28:1;:::34;:47::49:0;;:51::54;;:38::55:1;:16;:8::57;99:12:99:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;100:12:100:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;101:12:101:23:0;;:26::27;:12:::1;:29::82:0;:47::50;;:39::51:1;:55::57:0;;:39:::1;:70::72:0;;:74::77;;:61::78:1;:39;:31::80;:29::82;102:16:102:27:0;;:31::32;:16:::1;:36::47:0;;:51::52;:36:::1;:16;:8::54;94:6:103:5;;;;;;;13:0:104:1",
     "logs": [],
     "requires": [
-      { "ip": 23, "line": 32, "message": "input 0 must be this circle" },
-      { "ip": 30, "line": 33, "message": "input 0 must hold the state NFT" },
-      { "ip": 34, "line": 34, "message": "contributions carry no tokens" },
-      { "ip": 42, "line": 37, "message": "state NFT must be mutable, right category" },
-      { "ip": 49, "line": 39 },
-      { "ip": 54, "line": 40, "message": "circle already completed" },
-      { "ip": 70, "line": 46, "message": "all inputs must be circle UTXOs" },
-      { "ip": 100, "line": 50, "message": "maxFee must leave at least 1000 sats for recipient" },
-      { "ip": 103, "line": 51, "message": "pot not full yet" },
-      { "ip": 108, "line": 54, "message": "state must stay in circle" },
-      { "ip": 115, "line": 55, "message": "state NFT must stay mutable" },
-      { "ip": 119, "line": 56 },
-      { "ip": 127, "line": 57, "message": "round must increment by one" },
-      { "ip": 132, "line": 58, "message": "state value preserved" },
-      { "ip": 179, "line": 66, "message": "pot must go to this round's member" },
-      { "ip": 183, "line": 67 },
-      { "ip": 208, "line": 72, "message": "recipient underpaid" },
-      { "ip": 215, "line": 76, "message": "surplus output required" },
-      { "ip": 220, "line": 77, "message": "surplus must return to circle" },
-      { "ip": 224, "line": 78 },
-      { "ip": 229, "line": 79, "message": "surplus must be returned in full" },
-      { "ip": 233, "line": 81, "message": "no extra outputs" },
-      { "ip": 254, "line": 95, "message": "cancel runs on the state input" },
-      { "ip": 261, "line": 96 },
-      { "ip": 272, "line": 97 },
-      { "ip": 283, "line": 98 },
-      { "ip": 300, "line": 99 },
-      { "ip": 319, "line": 100 },
-      { "ip": 338, "line": 101 },
-      { "ip": 349, "line": 102 }
+      {
+        "ip": 23,
+        "line": 32,
+        "message": "input 0 must be this circle"
+      },
+      {
+        "ip": 30,
+        "line": 33,
+        "message": "input 0 must hold the state NFT"
+      },
+      {
+        "ip": 34,
+        "line": 34,
+        "message": "contributions carry no tokens"
+      },
+      {
+        "ip": 42,
+        "line": 37,
+        "message": "state NFT must be mutable, right category"
+      },
+      {
+        "ip": 49,
+        "line": 39
+      },
+      {
+        "ip": 54,
+        "line": 40,
+        "message": "circle already completed"
+      },
+      {
+        "ip": 70,
+        "line": 46,
+        "message": "all inputs must be circle UTXOs"
+      },
+      {
+        "ip": 100,
+        "line": 50,
+        "message": "maxFee must leave at least 1000 sats for recipient"
+      },
+      {
+        "ip": 103,
+        "line": 51,
+        "message": "pot not full yet"
+      },
+      {
+        "ip": 108,
+        "line": 54,
+        "message": "state must stay in circle"
+      },
+      {
+        "ip": 115,
+        "line": 55,
+        "message": "state NFT must stay mutable"
+      },
+      {
+        "ip": 119,
+        "line": 56
+      },
+      {
+        "ip": 127,
+        "line": 57,
+        "message": "round must increment by one"
+      },
+      {
+        "ip": 132,
+        "line": 58,
+        "message": "state value preserved"
+      },
+      {
+        "ip": 179,
+        "line": 66,
+        "message": "pot must go to this round's member"
+      },
+      {
+        "ip": 183,
+        "line": 67
+      },
+      {
+        "ip": 208,
+        "line": 72,
+        "message": "recipient underpaid"
+      },
+      {
+        "ip": 215,
+        "line": 76,
+        "message": "surplus output required"
+      },
+      {
+        "ip": 220,
+        "line": 77,
+        "message": "surplus must return to circle"
+      },
+      {
+        "ip": 224,
+        "line": 78
+      },
+      {
+        "ip": 229,
+        "line": 79,
+        "message": "surplus must be returned in full"
+      },
+      {
+        "ip": 233,
+        "line": 81,
+        "message": "no extra outputs"
+      },
+      {
+        "ip": 254,
+        "line": 95,
+        "message": "cancel runs on the state input"
+      },
+      {
+        "ip": 261,
+        "line": 96
+      },
+      {
+        "ip": 272,
+        "line": 97
+      },
+      {
+        "ip": 283,
+        "line": 98
+      },
+      {
+        "ip": 300,
+        "line": 99
+      },
+      {
+        "ip": 319,
+        "line": 100
+      },
+      {
+        "ip": 338,
+        "line": 101
+      },
+      {
+        "ip": 349,
+        "line": 102
+      }
     ],
     "sourceTags": "68:68:fu;69:72:lc;73:73:sc;226:229:sc"
   },
@@ -77,6 +246,5 @@
       "enforceFunctionParameterTypes": true,
       "enforceLocktimeGuard": true
     }
-  },
-  "updatedAt": "2026-11-02T13:01:48.168Z"
+  }
 }
