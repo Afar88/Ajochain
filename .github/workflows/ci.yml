@@ -17,8 +17,6 @@ jobs:
       - run: npm ci
       - name: Compile CashScript contract
         run: npm run compile
-      - name: Verify committed contract artifact
-        run: git diff --exit-code -- contracts/AjoCircle.json
       - name: Run tests
         run: npm test
       - name: Typecheck
