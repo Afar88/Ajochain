@@ -65,7 +65,12 @@ describe('AjoCirclePUSD',()=>{
 
   it('rejects a contribution using the wrong token category',async()=>{
     const st=state(0), bad=token('cd'.repeat(32),300n);
-    const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInput(bad,contract.unlock.payout())
+    provider.addUtxo(contract.address,st);
+    provider.addUtxo(contract.address,bad);
+    const all=await contract.getUtxos();
+    const stateInput=all.find(u=>u.token?.category===STATE)!;
+    const badInput=all.find(u=>u.token?.category==='cd'.repeat(32))!;
+    const b=new TransactionBuilder({provider}).addInput(stateInput,contract.unlock.payout()).addInput(badInput,contract.unlock.payout())
       .addOutput({to:contract.tokenAddress,amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
       .addOutput({to:tokenAddress(members[0].pkh),amount:DUST,token:{category:PUSD,amount:300n}});
     await expect(b.send()).rejects.toThrow(/contribution must be PUSD/);
@@ -101,8 +106,10 @@ describe('AjoCirclePUSD',()=>{
 
   it('rejects a non-member attempting cancel',async()=>{
     const st=state(0);
+    provider.addUtxo(contract.address,st);
+    const stateInput=(await contract.getUtxos()).find(u=>u.token?.category===STATE)!;
     const sigArgs=[outsider,members[1],members[2],outsider,outsider].flatMap(k=>[k.pub,k.sig]);
-    const b=new TransactionBuilder({provider}).addInput(st,(contract.unlock as any).cancel(...sigArgs))
+    const b=new TransactionBuilder({provider}).addInput(stateInput,(contract.unlock as any).cancel(...sigArgs))
       .addOutput({to:tokenAddress(outsider.pkh),amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}});
     await expect(b.send()).rejects.toThrow();
   });
