@@ -16,6 +16,8 @@
 5. Members contribute to the circle address. When the pot is full, anyone can trigger the scheduled payout.
 6. Open **My circles** to return to circles saved in this browser.
 
+👉 **Testing with friends?** See the [2-minute tester guide](TESTERS.md).
+
 For Chipnet BCH, obtain test coins from a Chipnet faucet such as [tbch.googol.cash](https://tbch.googol.cash/). PUSD is experimental and remains Chipnet-only. Never enter or share a seed phrase or private key with AjoChain.
 ---
 
