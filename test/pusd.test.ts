@@ -33,7 +33,9 @@ function token(category=PUSD, amount=100n) {
   return randomUtxo({satoshis:DUST,token:{category,amount}});
 }
 async function fundRound(round:number, amounts=[C,C,C]) {
-  provider.addUtxo(contract.address,state(round));
+  // The first state NFT is seeded once; later rounds spend the NFT returned by
+  // the preceding payout rather than minting a fresh mock state token.
+  if (round === 0) provider.addUtxo(contract.address,state(round));
   for (const amount of amounts) provider.addUtxo(contract.address,token(PUSD,amount));
 }
 function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=300n, surplus=0n) {
