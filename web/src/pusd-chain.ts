@@ -3,7 +3,7 @@ import {
   TransactionBuilder, placeholderP2PKHUnlocker,
   type SpendableUtxo,
 } from 'cashscript';
-import { getProvider } from './chain';
+import { getProvider } from './chain';\nimport { encodeCashAddress } from '@bitauth/libauth';\nimport { addressToPkh } from '../../src/lib/ajo';
 import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../src/lib/pusd';
 import { encodeRound, type Net } from '../src/lib/ajo';
 
@@ -59,15 +59,19 @@ export async function planPusdContribution(
     remaining-=u.token?.amount??0n;
   }
   const tokenBacking=pickedTokens.reduce((s,u)=>s+u.satoshis,0n);
-  if(tokenBacking<PUSD_DUST) throw new Error('Selected PUSD inputs do not carry enough BCH dust backing');
+  const tokenChange=-remaining;
+  const hasTokenChange=tokenChange>0n;
+  if(tokenBacking<(hasTokenChange?2n*PUSD_DUST:PUSD_DUST)) throw new Error('Selected PUSD inputs do not carry enough BCH dust backing for token change');
+  const walletTokenAddress=encodeCashAddress({prefix:params.network==='mainnet'?'bitcoincash':'bchtest',type:'p2pkhWithTokens',payload:addressToPkh(walletAddress)});
+  if(typeof walletTokenAddress==='string') throw new Error('Could not derive wallet token-change address');
   const coins=walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
   const bchInputs:SpendableUtxo[]=[];
   let total=0n;
   for(const u of coins){
-    if(total>=reserveSats+estimateFee(pickedTokens.length+bchInputs.length,3)+546n) break;
+    if(total>=reserveSats+estimateFee(pickedTokens.length+bchInputs.length,hasTokenChange?4:3)+546n) break;
     bchInputs.push(u);total+=u.satoshis;
   }
-  const fee=estimateFee(pickedTokens.length+bchInputs.length,3);
+  const fee=estimateFee(pickedTokens.length+bchInputs.length,hasTokenChange?4:3);
   const change=total-reserveSats-fee;
   if(change<0n) throw new Error('Not enough BCH to fund the circle fee reserve and transaction fee');
   const b=new TransactionBuilder({provider});
