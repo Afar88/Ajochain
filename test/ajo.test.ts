@@ -371,6 +371,6 @@ describe('circle share links: validation', () => {
     const value = { n: 'Test', net: 'chipnet', m: params(2).members, c: '100000', f: '200000', k: CATEGORY };
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(value))))
       .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-    expect(() => decodeCircle(encoded)).toThrow(/maxFee must be less than the circle pot/);
+    expect(() => decodeCircle(encoded)).toThrow(/maxFee must leave at least 1000 sats for the recipient/);
   });
 });
