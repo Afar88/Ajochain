@@ -31,8 +31,8 @@ let contract: Contract;
 function state(round:number) {
   return randomUtxo({satoshis:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:round.toString(16).padStart(2,'0')}}});
 }
-function token(category=PUSD, amount=100n) {
-  return randomUtxo({satoshis:TOKEN_SATS,token:{category,amount}});
+function token(category=PUSD, amount=100n, satoshis=TOKEN_SATS) {
+  return randomUtxo({satoshis,token:{category,amount}});
 }
 async function fundRound(round:number, amounts=[C,C,C]) {
   // The first state NFT is seeded once; later rounds spend the NFT returned by
@@ -99,7 +99,8 @@ describe('AjoCirclePUSD',()=>{
   });
 
   it('returns PUSD surplus only to the circle',async()=>{
-    await fundRound(0,[150n,100n,100n]);
+    provider.addUtxo(contract.address,state(0));
+    for (const amount of [150n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,5000n));
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
     const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInputs(ins,contract.unlock.payout())
       .addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
