@@ -111,7 +111,7 @@ describe('AjoCircle covenant: happy path', () => {
   });
 
 
-  it('rejects a maxFee that is equal to or greater than the pot', () => {
+  it('rejects a maxFee that leaves less than the dust minimum', () => {
     const pot = 2n * C;
     const invalid = { ...params(2), maxFee: pot - STATE_DUST + 1n };
     expect(() => circleContract(invalid, provider)).toThrow(/maxFee must leave at least 1000 sats for the recipient/);
