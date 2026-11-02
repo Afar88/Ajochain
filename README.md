@@ -96,7 +96,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Tests
 
-`npm test` runs the BCH, PUSD, and browser-demo suites (42 tests total), all on `MockNetworkProvider` with full VM validation:
+`npm test` runs the BCH, PUSD, and browser-demo suites (43 tests total), all on `MockNetworkProvider` with full VM validation:
 
 - Happy path: a full 5-round circle paying each member in order, a 2-member circle, uneven contribution sizes, surplus returned to the circle (3rd output), early contributions left for the next round, payout refused before the pot is full or after the circle completes.
 - Attacks rejected (each asserts the specific `require` that fires): paying the wrong member, paying an outsider, not incrementing the round, underpaying the recipient (fee > maxFee), skimming an extra output, moving the state NFT out of the circle, spending contributions without the state UTXO, a fake state NFT of another category, an immutable NFT as state, mixing in outside inputs.
