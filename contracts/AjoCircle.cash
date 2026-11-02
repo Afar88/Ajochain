@@ -47,7 +47,7 @@ contract AjoCircle(
                 available = available + tx.inputs[i].value;
             }
             int pot = memberCount * contribution;
-            require(maxFee >= 0 && maxFee < pot, "maxFee must be less than pot");
+            require(maxFee >= 0 && maxFee <= pot - 1000, "maxFee must leave at least 1000 sats for recipient");
             require(available >= pot, "pot not full yet");
 
             // Output 0: state NFT goes back to the circle with round + 1.
