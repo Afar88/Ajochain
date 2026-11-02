@@ -21,7 +21,7 @@
 
 AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
 
-PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. Tests use CashScript's MockNetworkProvider only. **Unaudited; do not use with mainnet funds.**
+PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. The experimental web flow now supports Chipnet circle creation, wallet-funded PUSD contributions, live status, and permissionless payouts. PUSD creation and contribution transactions use WizardConnect; payout uses the covenant. Tests use CashScript's MockNetworkProvider only. Cancellation still requires every member's signature and has no in-app multi-wallet signing flow. **Chipnet only; unaudited; do not use with mainnet funds.**
 
 ## The problem
 
@@ -96,7 +96,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Tests
 
-`npm test` runs the BCH, PUSD, and browser-demo suites (41 tests total), all on `MockNetworkProvider` with full VM validation:
+`npm test` runs the BCH, PUSD, and browser-demo suites (42 tests total), all on `MockNetworkProvider` with full VM validation:
 
 - Happy path: a full 5-round circle paying each member in order, a 2-member circle, uneven contribution sizes, surplus returned to the circle (3rd output), early contributions left for the next round, payout refused before the pot is full or after the circle completes.
 - Attacks rejected (each asserts the specific `require` that fires): paying the wrong member, paying an outsider, not incrementing the round, underpaying the recipient (fee > maxFee), skimming an extra output, moving the state NFT out of the circle, spending contributions without the state UTXO, a fake state NFT of another category, an immutable NFT as state, mixing in outside inputs.
@@ -106,7 +106,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Limitations (honest list)
 
-- **Unaudited hackathon MVP.** Use chipnet. Mainnet is switchable but not recommended.
+- **Unaudited hackathon MVP.** Use chipnet. The BCH flow can switch to mainnet with a warning; PUSD is programmatically restricted to chipnet.
 - **Up to 5 members**, fixed order. Bigger circles mean more constructor slots (or a merkle-root of members).
 - **No enforcement of who contributed.** The covenant counts BCH, not *who* paid it. If a member doesn't pay, the pot just isn't full and the payout waits. Social pressure (as with traditional Ajo) still decides what happens with late payers. Members who already received the pot can't be forced to keep paying. That's the core trust problem of any ROSCA, and solving it needs collateral (see roadmap).
 - **Fee comes from the BCH pot** (≤ `maxFee`, default 10,000 sats). The payout picks the largest contribution UTXOs first to keep the tx small; many tiny contributions could exceed `maxFee`. Any surplus below 1,000 sats is included in the recipient's payment rather than treated as miner fee.
@@ -117,7 +117,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Roadmap
 
-- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental PUSD covenant and mock-provider transaction tests are included, including a unanimous multi-input cancellation path; production wallet/UI integration, real-chain testing, and independent audit remain outstanding.
+- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental Chipnet UI supports creation, contributions, live status, and permissionless payouts. Real Chipnet wallet testing, cancellation signing UX, end-to-end tests against the network, and independent audit remain outstanding.
 - **Collateral / late-payer penalties**: members lock a deposit that's slashed if they skip a round after being paid.
 - **Per-member contribution receipts**: small NFTs per payment so the app can show *who* paid each round.
 - **Timed rounds** (`tx.time`), cancel builder in the UI, more members via merkle proofs, Naira price display, WhatsApp share links.
