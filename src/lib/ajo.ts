@@ -66,8 +66,8 @@ export function validateParams(p: CircleParams): void {
   p.members.forEach(addressToPkh);
   if (p.contribution < 1000n) throw new Error('Contribution must be at least 1000 sats');
   if (p.maxFee < 0n) throw new Error('maxFee must be >= 0');
-  if (p.maxFee >= BigInt(p.members.length) * p.contribution) {
-    throw new Error('maxFee must be less than the circle pot');
+  if (p.maxFee > BigInt(p.members.length) * p.contribution - STATE_DUST) {
+    throw new Error(`maxFee must leave at least ${STATE_DUST} sats for the recipient`);
   }
   if (!/^[0-9a-f]{64}$/i.test(p.stateCategory)) throw new Error('stateCategory must be 32-byte hex');
 }
