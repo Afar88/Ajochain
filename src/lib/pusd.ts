@@ -23,7 +23,7 @@ export interface PusdCircleParams {
 
 export function validatePusdParams(p: PusdCircleParams): void {
   if (!p.name.trim()) throw new Error('Circle name is required');
-  if (p.network !== 'chipnet' && p.network !== 'mainnet') throw new Error('Invalid network');
+  if (p.network !== 'chipnet') throw new Error('PUSD circles are Chipnet-only until wallet, real-chain, and security reviews are complete');
   if (p.members.length < 2 || p.members.length > 5) throw new Error('A PUSD circle needs 2–5 members');
   p.members.forEach(addressToPkh);
   if (p.contribution <= 0n) throw new Error('PUSD contribution must be positive');
