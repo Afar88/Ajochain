@@ -1,12 +1,11 @@
 pragma cashscript ^0.14.0;
 
-// PUSD variant of AjoCircle. Fungible PUSD units define the pot; BCH carried
-// by token UTXOs is reserved for dust and the miner fee.
+// PUSD variant of AjoCircle. PUSD UTXOs carry their own BCH backing; a
+// separate token-free BCH UTXO funds miner fees. Token backing is preserved.
 contract AjoCirclePUSD(
     bytes20 m0, bytes20 m1, bytes20 m2, bytes20 m3, bytes20 m4,
     int memberCount,
     int contribution,
-    int maxFee,
     bytes32 stateCategory,
     bytes32 pusdCategory
 ) {
@@ -23,14 +22,23 @@ contract AjoCirclePUSD(
 
             int stateValue = tx.inputs[0].value;
             int tokenPot = 0;
+            int tokenBchIn = 0;
+            int reserveBchIn = 0;
             int bchIn = stateValue;
             for (int i = 1; i < tx.inputs.length; i++) {
                 require(tx.inputs[i].lockingBytecode == selfLock, "all inputs must be circle UTXOs");
-                require(tx.inputs[i].tokenCategory == pusdCategory, "contribution must be PUSD");
-                require(tx.inputs[i].tokenAmount > 0, "empty PUSD contribution");
-                tokenPot = tokenPot + tx.inputs[i].tokenAmount;
                 bchIn = bchIn + tx.inputs[i].value;
+                if (tx.inputs[i].tokenCategory == pusdCategory) {
+                    require(tx.inputs[i].tokenAmount > 0, "empty PUSD contribution");
+                    tokenPot = tokenPot + tx.inputs[i].tokenAmount;
+                    tokenBchIn = tokenBchIn + tx.inputs[i].value;
+                } else {
+                    require(tx.inputs[i].tokenCategory == 0x00, "fee reserve must be BCH-only");
+                    require(tx.inputs[i].tokenAmount == 0, "fee reserve cannot contain tokens");
+                    reserveBchIn = reserveBchIn + tx.inputs[i].value;
+                }
             }
+            require(reserveBchIn > 0, "BCH fee reserve input required");
             int pot = memberCount * contribution;
             require(tokenPot >= pot, "PUSD pot not full yet");
 
@@ -51,19 +59,32 @@ contract AjoCirclePUSD(
             require(tx.outputs[1].value >= 1000, "recipient token output needs BCH dust");
 
             int surplus = tokenPot - pot;
+            int tokenBchOut = tx.outputs[1].value;
+            int reserveChangeIndex = 2;
             if (surplus > 0) {
-                require(tx.outputs.length == 3, "PUSD surplus output required");
+                require(tx.outputs.length == 4, "PUSD surplus and BCH reserve change required");
                 require(tx.outputs[2].lockingBytecode == selfLock, "PUSD surplus must return to circle");
                 require(tx.outputs[2].tokenCategory == pusdCategory, "surplus must remain PUSD");
                 require(tx.outputs[2].tokenAmount == surplus, "PUSD surplus must be returned in full");
                 require(tx.outputs[2].value >= 1000, "surplus token output needs BCH dust");
+                tokenBchOut = tokenBchOut + tx.outputs[2].value;
+                reserveChangeIndex = 3;
             } else {
-                require(tx.outputs.length == 2, "no extra outputs");
+                require(tx.outputs.length == 3, "BCH reserve change output required");
             }
+
+            // Preserve all BCH backing carried by PUSD inputs. Only the
+            // separately supplied token-free BCH reserve can pay miner fees.
+            require(tokenBchOut >= tokenBchIn, "PUSD BCH backing must be preserved");
+            require(tx.outputs[reserveChangeIndex].lockingBytecode == selfLock, "unused BCH reserve must return to circle");
+            require(tx.outputs[reserveChangeIndex].tokenCategory == 0x00, "BCH reserve change cannot contain tokens");
+            require(tx.outputs[reserveChangeIndex].tokenAmount == 0, "BCH reserve change cannot contain tokens");
+            require(tx.outputs[reserveChangeIndex].value >= 1000, "BCH reserve change needs dust");
+
             int bchOut = 0;
             for (int j = 0; j < tx.outputs.length; j++) { bchOut = bchOut + tx.outputs[j].value; }
-            require(bchIn >= bchOut, "BCH inputs must cover dust outputs");
-            require(bchIn - bchOut <= maxFee, "BCH miner fee exceeds maxFee");
+            require(bchIn >= bchOut, "BCH inputs must cover outputs");
+            require(bchIn - bchOut <= reserveBchIn, "miner fee exceeds funded BCH reserve");
         }
     }
 
