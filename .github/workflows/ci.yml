@@ -24,6 +24,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node -e "const fs=require('node:fs');const p='contracts/AjoCircle.json';const a=JSON.parse(fs.readFileSync(p,'utf8'));delete a.updatedAt;fs.writeFileSync(p,JSON.stringify(a,null,2)+'\\n')"
           git add contracts/AjoCircle.json
           if ! git diff --cached --quiet; then
             git commit -m "Update compiled BCH covenant artifact"
