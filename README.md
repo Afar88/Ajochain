@@ -16,6 +16,13 @@
 
 ---
 
+
+### PUSD circles (experimental)
+
+AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
+
+PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output, preserves the state UTXO's BCH value, and caps the remaining BCH miner fee at `maxFee`. This is a separate experimental contract; the BCH-only `AjoCircle.cash` is unchanged. Tests use CashScript's MockNetworkProvider only. **Unaudited; do not use with mainnet funds.**
+
 ## The problem
 
 Ajo (Yoruba), Esusu, Susu or *adashe* is how tens of millions of people across Nigeria and West Africa save, especially market traders, artisans and people the banks don't serve well. It works on trust, and one person, the *alajo* or treasurer, holds everyone's cash between payouts. When the treasurer disappears, gets robbed, or "borrows" the pot, the whole circle loses. Members also can't easily check the balance or whose turn it is.
