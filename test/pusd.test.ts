@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, randomUtxo } from 'cashscript';
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
-import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };\nimport { buildPusdPayout, pusdStatus, type PusdCircleParams } from '../src/lib/pusd';
+import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
+import { buildPusdPayout, pusdStatus, type PusdCircleParams } from '../src/lib/pusd';
 
 const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 const STATE = 'ab'.repeat(32);
