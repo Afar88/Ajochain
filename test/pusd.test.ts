@@ -100,7 +100,7 @@ describe('AjoCirclePUSD',()=>{
 
   it('returns PUSD surplus only to the circle',async()=>{
     provider.addUtxo(contract.address,state(0));
-    for (const amount of [250n,100n,100n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,5000n));
+    for (const amount of [250n,100n,100n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,TOKEN_SATS));
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
     const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInputs(ins,contract.unlock.payout())
       .addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
