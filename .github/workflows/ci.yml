@@ -23,3 +23,8 @@ jobs:
         run: npm run typecheck
       - name: Build web app
         run: npm run build
+      - name: Upload compiled contract artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-cashscript-artifact
+          path: contracts/AjoCircle.json
