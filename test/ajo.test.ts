@@ -112,8 +112,14 @@ describe('AjoCircle covenant: happy path', () => {
 
 
   it('rejects a maxFee that is equal to or greater than the pot', () => {
-    const invalid = { ...params(2), maxFee: 200_000n };
-    expect(() => circleContract(invalid, provider)).toThrow(/maxFee must be less than the circle pot/);
+    const pot = 2n * C;
+    const invalid = { ...params(2), maxFee: pot - STATE_DUST + 1n };
+    expect(() => circleContract(invalid, provider)).toThrow(/maxFee must leave at least 1000 sats for the recipient/);
+  });
+
+  it('accepts the largest fee cap that still leaves a dust-safe recipient output', () => {
+    const valid = { ...params(2), maxFee: 2n * C - STATE_DUST };
+    expect(() => circleContract(valid, provider)).not.toThrow();
   });
 
   it('pays tiny input surplus to the recipient instead of miner fees', async () => {
