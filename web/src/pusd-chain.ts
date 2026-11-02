@@ -6,7 +6,7 @@ import {
 import { getProvider } from './chain';
 import { encodeCashAddress } from '@bitauth/libauth';
 import { addressToPkh } from '../../src/lib/ajo';
-import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../src/lib/pusd';
+import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
 import { encodeRound, type Net } from '../src/lib/ajo';
 
 const estimateFee = (inputs:number, outputs:number) => BigInt(10 + inputs * 150 + outputs * 100 + 100);
