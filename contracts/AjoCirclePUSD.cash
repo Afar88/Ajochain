@@ -40,7 +40,7 @@ contract AjoCirclePUSD(
                     tokenPot = tokenPot + tx.inputs[i].tokenAmount;
                     tokenBchIn = tokenBchIn + tx.inputs[i].value;
                 } else {
-                    require(tx.inputs[i].tokenCategory == 0x, "fee reserve must be BCH-only");
+                    require(tx.inputs[i].tokenCategory == 0x, "contribution must be PUSD or BCH reserve");
                     require(tx.inputs[i].tokenAmount == 0, "fee reserve cannot contain tokens");
                     reserveBchIn = reserveBchIn + tx.inputs[i].value;
                 }
