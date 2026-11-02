@@ -63,6 +63,9 @@ export function validateParams(p: CircleParams): void {
   p.members.forEach(addressToPkh);
   if (p.contribution < 1000n) throw new Error('Contribution must be at least 1000 sats');
   if (p.maxFee < 0n) throw new Error('maxFee must be >= 0');
+  if (p.maxFee >= BigInt(p.members.length) * p.contribution) {
+    throw new Error('maxFee must be less than the circle pot');
+  }
   if (!/^[0-9a-f]{64}$/i.test(p.stateCategory)) throw new Error('stateCategory must be 32-byte hex');
 }
 
@@ -178,7 +181,10 @@ export function buildPayout(
         nft: { capability: 'mutable', commitment: encodeRound(round + 1) },
       },
     });
-    b.addOutput({ to: s.recipient!, amount: P - fee });
+    // If surplus is too small to create a dust-safe change output, pay it to
+    // the recipient rather than silently adding it to the miner fee.
+    const recipientAmount = (surplus < 1000n ? pickedSum : P) - fee;
+    b.addOutput({ to: s.recipient!, amount: recipientAmount });
     if (surplus >= 1000n) b.addOutput({ to: contract.address, amount: surplus });
     return b;
   };
@@ -191,7 +197,8 @@ export function buildPayout(
   if (fee > p.maxFee) {
     throw new Error(`Fee ${fee} exceeds the circle's maxFee ${p.maxFee}; too many small contribution UTXOs`);
   }
-  return { builder: make(fee), fee, recipient: s.recipient!, amount: P - fee, round };
+  const amount = (surplus < 1000n ? pickedSum : P) - fee;
+  return { builder: make(fee), fee, recipient: s.recipient!, amount, round };
 }
 
 /** Encode circle params into a shareable string (URL hash). */
