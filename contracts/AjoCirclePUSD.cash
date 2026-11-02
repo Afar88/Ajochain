@@ -103,8 +103,17 @@ contract AjoCirclePUSD(
         pubkey pk0, sig s0, pubkey pk1, sig s1, pubkey pk2, sig s2,
         pubkey pk3, sig s3, pubkey pk4, sig s4
     ) {
-        require(this.activeInputIndex == 0, "cancel runs on the state input");
-        require(tx.inputs[0].tokenCategory == stateCategory + 0x01);
+        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
+        // Every contract UTXO being cancelled must authorize the same
+        // transaction. The state NFT remains the canonical input at index 0.
+        if (this.activeInputIndex == 0) {
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
+        } else {
+            require(tx.inputs[0].lockingBytecode == selfLock, "all cancelled inputs must belong to this circle");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
+        }
         require(hash160(pk0) == m0 && checkSig(s0, pk0));
         require(hash160(pk1) == m1 && checkSig(s1, pk1));
         if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }
