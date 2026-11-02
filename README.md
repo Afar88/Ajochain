@@ -16,6 +16,13 @@
 
 ---
 
+
+### PUSD circles (experimental)
+
+AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
+
+PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output, preserves the state UTXO's BCH value, and caps the remaining BCH miner fee at `maxFee`. This is a separate experimental contract; the BCH-only `AjoCircle.cash` is unchanged. Tests use CashScript's MockNetworkProvider only. **Unaudited; do not use with mainnet funds.**
+
 ## The problem
 
 Ajo (Yoruba), Esusu, Susu or *adashe* is how tens of millions of people across Nigeria and West Africa save, especially market traders, artisans and people the banks don't serve well. It works on trust, and one person, the *alajo* or treasurer, holds everyone's cash between payouts. When the treasurer disappears, gets robbed, or "borrows" the pot, the whole circle loses. Members also can't easily check the balance or whose turn it is.
@@ -89,12 +96,13 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Tests
 
-`npm test` gives **24 passing tests** (`test/ajo.test.ts`, `test/demo.test.ts`), all on `MockNetworkProvider` with full VM validation:
+`npm test` runs the BCH and PUSD suites (31 tests total), all on `MockNetworkProvider` with full VM validation:
 
 - Happy path: a full 5-round circle paying each member in order, a 2-member circle, uneven contribution sizes, surplus returned to the circle (3rd output), early contributions left for the next round, payout refused before the pot is full or after the circle completes.
 - Attacks rejected (each asserts the specific `require` that fires): paying the wrong member, paying an outsider, not incrementing the round, underpaying the recipient (fee > maxFee), skimming an extra output, moving the state NFT out of the circle, spending contributions without the state UTXO, a fake state NFT of another category, an immutable NFT as state, mixing in outside inputs.
 - Cancel: works with all member signatures and fails with one wrong signer.
 - Helpers: share-link round trip and parameter validation; the in-browser demo flow end to end.
+- PUSD: three-round token payouts, wrong-category rejection, one-unit shortfall, wrong recipient, skipped round, surplus theft, and non-member cancellation rejection.
 
 ## Limitations (honest list)
 
@@ -109,7 +117,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Roadmap
 
-- **Stablecoin circles (PUSD / CashTokens FTs)**: contributions in a fungible token so savings don't swing with BCH price. The covenant change is small (sum `tokenAmount` of a pinned FT category instead of `value`). Not done in this MVP.
+- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental PUSD covenant and mock-provider attack tests are now included; production integration and independent audit remain outstanding.
 - **Collateral / late-payer penalties**: members lock a deposit that's slashed if they skip a round after being paid.
 - **Per-member contribution receipts**: small NFTs per payment so the app can show *who* paid each round.
 - **Timed rounds** (`tx.time`), cancel builder in the UI, more members via merkle proofs, Naira price display, WhatsApp share links.
