@@ -82,7 +82,12 @@ describe('AjoCirclePUSD',()=>{
     provider.addUtxo(contract.address,contaminated);
     for (let i=0;i<5;i++) provider.addUtxo(contract.address,token());
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
-    await expect((await payoutTx(st,ins,members[0],1,500n)).send()).rejects.toThrow(/state NFT cannot carry fungible tokens/);
+    const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInputs(ins,contract.unlock.payout())
+      .addInput(await feeReserveUtxo(),contract.unlock.payout())
+      .addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:1n,nft:{capability:'mutable',commitment:'01'}}})
+      .addOutput({to:tokenAddress(members[0].pkh),amount:ins.reduce((sum,u)=>sum+u.satoshis,0n),token:{category:PUSD,amount:500n}})
+      .addOutput({to:contract.tokenAddress,amount:FEE_RESERVE_CHANGE});
+    await expect(b.send()).rejects.toThrow(/state NFT cannot carry fungible tokens/);
   });
 
   it('rejects a contribution using the wrong token category',async()=>{
