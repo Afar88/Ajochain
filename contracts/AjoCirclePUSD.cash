@@ -14,7 +14,14 @@ contract AjoCirclePUSD(
         if (this.activeInputIndex != 0) {
             require(tx.inputs[0].lockingBytecode == selfLock, "input 0 must be this circle");
             require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "input 0 must hold the state NFT");
-            require(tx.inputs[this.activeInputIndex].tokenCategory == pusdCategory, "contribution must be PUSD");
+            // PUSD inputs carry the contribution token; the dedicated BCH
+            // reserve input is also spent by this covenant but carries no token.
+            if (tx.inputs[this.activeInputIndex].tokenCategory == pusdCategory) {
+                require(tx.inputs[this.activeInputIndex].tokenAmount > 0, "empty PUSD contribution");
+            } else {
+                require(tx.inputs[this.activeInputIndex].tokenCategory == 0x, "input must be PUSD or BCH reserve");
+                require(tx.inputs[this.activeInputIndex].tokenAmount == 0, "BCH reserve cannot contain tokens");
+            }
         } else {
             require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT must be mutable, right category");
             int round = int(tx.inputs[0].nftCommitment);
