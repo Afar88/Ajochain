@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, randomUtxo } from 'cashscript';
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
-import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
+import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };\nimport { buildPusdPayout, pusdStatus, type PusdCircleParams } from '../src/lib/pusd';
 
 const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 const STATE = 'ab'.repeat(32);
@@ -160,6 +160,22 @@ describe('AjoCirclePUSD',()=>{
     const recovered=await provider.getUtxos(tokenAddress(outsider.pkh));
     expect(recovered.reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(5n*C);
     expect(recovered.some(u=>u.token?.category===STATE)).toBe(true);
+  });
+
+  it('reports PUSD readiness and builds a fee-reserve-only payout',async()=>{
+    provider.addUtxo(contract.address,state(0));
+    for(let i=0;i<5;i++) provider.addUtxo(contract.address,token(PUSD,C));
+    await feeReserveUtxo();
+    const all=await contract.getUtxos();
+    const addresses=members.map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
+    const params:PusdCircleParams={name:'Builder test',network:'chipnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:PUSD};
+    const status=pusdStatus(params,all);
+    expect(status.ready).toBe(true);
+    const result=buildPusdPayout(params,contract,all,provider);
+    expect(result.recipient).toBe(addresses[0]);
+    expect(result.tokenAmount).toBe(5n*C);
+    expect(result.fee).toBeGreaterThan(0n);
+    expect(result.builder.build()).toBeTruthy();
   });
 
   it('rejects a non-member attempting cancel',async()=>{
