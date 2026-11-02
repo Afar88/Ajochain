@@ -66,8 +66,8 @@ Constructor: `m0..m4` (member pubkey hashes, unused slots zero), `memberCount` (
   - holds a **mutable** NFT of the pinned `stateCategory`; `round = commitment`, and `round < memberCount`
   - **every** input is a UTXO of this circle (so the pot can't be faked with outside coins), and their sum (excluding the state UTXO) is `≥ memberCount × contribution`
   - output 0 returns the state NFT to the circle, same value, same category, still mutable, `commitment == round + 1`
-  - output 1 pays `member[round]` (P2PKH) at least `pot − maxFee`; no tokens
-  - any surplus ≥ 1000 sats must go back to the circle in output 2; otherwise exactly 2 outputs. No extra outputs.
+  - output 1 pays `member[round]` (P2PKH), with the miner fee capped by `maxFee`; no tokens
+  - any surplus ≥ 1000 sats must go back to the circle in output 2. A surplus below 1000 sats cannot form a dust-safe change output, so it is paid to the recipient; otherwise exactly 2 outputs. No extra outputs.
 
 **`cancel(pk0, s0, …, pk4, s4)`**: an emergency exit. **All** `memberCount` members sign, and together they decide where the funds go (no output restrictions).
 
@@ -109,7 +109,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 - **Unaudited hackathon MVP.** Use chipnet. Mainnet is switchable but not recommended.
 - **Up to 5 members**, fixed order. Bigger circles mean more constructor slots (or a merkle-root of members).
 - **No enforcement of who contributed.** The covenant counts BCH, not *who* paid it. If a member doesn't pay, the pot just isn't full and the payout waits. Social pressure (as with traditional Ajo) still decides what happens with late payers. Members who already received the pot can't be forced to keep paying. That's the core trust problem of any ROSCA, and solving it needs collateral (see roadmap).
-- **Fee comes from the pot** (≤ `maxFee`, default 10,000 sats). The payout picks the largest contribution UTXOs first to keep the tx small; many tiny contributions could exceed `maxFee`.
+- **Fee comes from the BCH pot** (≤ `maxFee`, default 10,000 sats). The payout picks the largest contribution UTXOs first to keep the tx small; many tiny contributions could exceed `maxFee`. Any surplus below 1,000 sats is included in the recipient's payment rather than treated as miner fee.
 - **Cancel** needs every member's signature, and the web UI doesn't build cancel txs yet (contract + tests only).
 - **WizardConnect**: integrated with the official `@wizardconnect/core` / `@wizardconnect/dapp` packages (pairing QR, session resume, sign + broadcast for genesis and contributions). It is **not yet tested end to end against a real WizardConnect wallet**, and the dapp only uses the wallet's receive address #0. The npm metadata of `@wizardconnect/dapp` lists its license as "Proprietary" (the React package says LGPL-3.0); check this before any production use.
 - **Genesis needs a wallet coin at output #0** (CashTokens rule). If your wallet has none, send yourself a small amount first. Advanced users can mint the state NFT manually from any CashTokens wallet using the "Genesis txid" option.
