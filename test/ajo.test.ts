@@ -355,7 +355,7 @@ describe('circle share links: validation', () => {
 
   it('rejects unsupported networks and malformed member lists', () => {
     const encode = (value: unknown) => btoa(unescape(encodeURIComponent(JSON.stringify(value))))
-      .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+      .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
     expect(() => decodeCircle(encode({ n: 'Test', net: 'regtest', m: [], c: '100000', f: '10000', k: CATEGORY }))).toThrow();
     expect(() => decodeCircle(encode({ n: 'Test', net: 'chipnet', m: 'not-an-array', c: '100000', f: '10000', k: CATEGORY }))).toThrow();
   });
@@ -363,7 +363,7 @@ describe('circle share links: validation', () => {
   it('rejects a fee cap that consumes the entire decoded pot', () => {
     const value = { n: 'Test', net: 'chipnet', m: params(2).members, c: '100000', f: '200000', k: CATEGORY };
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(value))))
-      .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+      .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
     expect(() => decodeCircle(encoded)).toThrow(/maxFee must be less than the circle pot/);
   });
 });
