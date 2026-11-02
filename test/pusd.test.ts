@@ -10,7 +10,7 @@ const STATE_SATS = 1000n;
 const TOKEN_SATS = 1500n;
 const C = 100n;
 const FEE_RESERVE_SATS = 20_000n;
-const FEE_RESERVE_CHANGE = 15_000n;
+const FEE_RESERVE_CHANGE = 14_000n;
 const members = [1,2,3,4,5].map(i => {
   const priv = new Uint8Array(32); priv[31] = i;
   const pub = secp256k1.derivePublicKeyCompressed(priv) as Uint8Array;
