@@ -36,8 +36,9 @@ function state(round:number) {
 function token(category=PUSD, amount=100n, satoshis=TOKEN_SATS) {
   return randomUtxo({satoshis,token:{category,amount}});
 }
-function feeReserve() {
-  return randomUtxo({satoshis:FEE_RESERVE_SATS});
+async function feeReserveUtxo() {
+  provider.addUtxo(contract.address,randomUtxo({satoshis:FEE_RESERVE_SATS}));
+  return (await contract.getUtxos()).find(u=>!u.token && u.satoshis===FEE_RESERVE_SATS)!;
 }
 async function fundRound(round:number, amounts=[C,C,C,C,C]) {
   // The first state NFT is seeded once; later rounds spend the NFT returned by
@@ -45,11 +46,11 @@ async function fundRound(round:number, amounts=[C,C,C,C,C]) {
   if (round === 0) provider.addUtxo(contract.address,state(round));
   for (const amount of amounts) provider.addUtxo(contract.address,token(PUSD,amount));
 }
-function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=500n, surplus=0n) {
+async function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=500n, surplus=0n) {
   const b=new TransactionBuilder({provider});
   b.addInput(st,contract.unlock.payout());
   b.addInputs(inputs,contract.unlock.payout());
-  b.addInput(feeReserve(),contract.unlock.payout());
+  b.addInput(await feeReserveUtxo(),contract.unlock.payout());
   b.addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:nextRound.toString(16).padStart(2,'0')}}});
   const tokenBchIn=inputs.reduce((sum,u)=>sum+u.satoshis,0n);
   const surplusBch=surplus>0n?DUST:0n;
@@ -70,7 +71,7 @@ describe('AjoCirclePUSD',()=>{
       const all=await contract.getUtxos();
       const st=all.find(u=>u.token?.category===STATE)!;
       const inputs=all.filter(u=>u.token?.category===PUSD);
-      await payoutTx(st,inputs,members[r],r+1,500n).send();
+      await (await payoutTx(st,inputs,members[r],r+1,500n)).send();
       const paid=await provider.getUtxos(tokenAddress(members[r].pkh));
       expect(paid.reduce((s,u)=>s+(u.token?.amount??0n),0n)).toBe(500n);
     }
@@ -92,19 +93,19 @@ describe('AjoCirclePUSD',()=>{
   it('rejects a pot short by one token unit',async()=>{
     await fundRound(0,[100n,100n,100n,100n,99n]);
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
-    await expect(payoutTx(st,ins,members[0],1,499n).send()).rejects.toThrow(/PUSD pot not full yet/);
+    await expect((await payoutTx(st,ins,members[0],1,499n)).send()).rejects.toThrow(/PUSD pot not full yet/);
   });
 
   it('rejects paying the wrong member',async()=>{
     await fundRound(0);
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
-    await expect(payoutTx(st,ins,members[1],1,500n).send()).rejects.toThrow(/pot must go to this round's member/);
+    await expect((await payoutTx(st,ins,members[1],1,500n)).send()).rejects.toThrow(/pot must go to this round's member/);
   });
 
   it('rejects skipping a round',async()=>{
     await fundRound(0);
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
-    await expect(payoutTx(st,ins,members[0],2,500n).send()).rejects.toThrow(/round must increment by one/);
+    await expect((await payoutTx(st,ins,members[0],2,500n)).send()).rejects.toThrow(/round must increment by one/);
   });
 
   it('returns PUSD surplus only to the circle',async()=>{
@@ -112,7 +113,7 @@ describe('AjoCirclePUSD',()=>{
     for (const amount of [250n,100n,100n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,TOKEN_SATS));
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
     const b=new TransactionBuilder({provider}).addInput(st,contract.unlock.payout()).addInputs(ins,contract.unlock.payout())
-      .addInput(feeReserve(),contract.unlock.payout())
+      .addInput(await feeReserveUtxo(),contract.unlock.payout())
       .addOutput({to:contract.tokenAddress,amount:STATE_SATS,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'01'}}})
       .addOutput({to:tokenAddress(members[0].pkh),amount:6500n,token:{category:PUSD,amount:500n}})
       .addOutput({to:tokenAddress(outsider.pkh),amount:1000n,token:{category:PUSD,amount:150n}})
@@ -124,7 +125,7 @@ describe('AjoCirclePUSD',()=>{
     provider.addUtxo(contract.address,state(0));
     for (const amount of [250n,100n,100n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,TOKEN_SATS));
     const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
-    await payoutTx(st,ins,members[0],1,500n,150n).send();
+    await (await payoutTx(st,ins,members[0],1,500n,150n)).send();
     const remaining=await contract.getUtxos();
     expect(remaining.filter(u=>u.token?.category===PUSD).reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(150n);
   });
