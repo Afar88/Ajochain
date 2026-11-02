@@ -1,0 +1,83 @@
+pragma cashscript ^0.14.0;
+
+// PUSD variant of AjoCircle. Fungible PUSD units define the pot; BCH carried
+// by token UTXOs is reserved for dust and the miner fee.
+contract AjoCirclePUSD(
+    bytes20 m0, bytes20 m1, bytes20 m2, bytes20 m3, bytes20 m4,
+    int memberCount,
+    int contribution,
+    int maxFee,
+    bytes32 stateCategory,
+    bytes32 pusdCategory
+) {
+    function payout() {
+        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
+        if (this.activeInputIndex != 0) {
+            require(tx.inputs[0].lockingBytecode == selfLock, "input 0 must be this circle");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "input 0 must hold the state NFT");
+            require(tx.inputs[this.activeInputIndex].tokenCategory == pusdCategory, "contribution must be PUSD");
+        } else {
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT must be mutable, right category");
+            int round = int(tx.inputs[0].nftCommitment);
+            require(round >= 0 && round < memberCount, "circle already completed");
+
+            int stateValue = tx.inputs[0].value;
+            int tokenPot = 0;
+            int bchIn = stateValue;
+            for (int i = 1; i < tx.inputs.length; i++) {
+                require(tx.inputs[i].lockingBytecode == selfLock, "all inputs must be circle UTXOs");
+                require(tx.inputs[i].tokenCategory == pusdCategory, "contribution must be PUSD");
+                require(tx.inputs[i].tokenAmount > 0, "empty PUSD contribution");
+                tokenPot = tokenPot + tx.inputs[i].tokenAmount;
+                bchIn = bchIn + tx.inputs[i].value;
+            }
+            int pot = memberCount * contribution;
+            require(tokenPot >= pot, "PUSD pot not full yet");
+
+            require(tx.outputs[0].lockingBytecode == selfLock, "state must stay in circle");
+            require(tx.outputs[0].tokenCategory == stateCategory + 0x01, "state NFT must stay mutable");
+            require(tx.outputs[0].tokenAmount == 0);
+            require(tx.outputs[0].nftCommitment == toPaddedBytes(round + 1, 1), "round must increment by one");
+            require(tx.outputs[0].value == stateValue, "state value preserved");
+
+            bytes20 recipient = m0;
+            if (round == 1) { recipient = m1; }
+            if (round == 2) { recipient = m2; }
+            if (round == 3) { recipient = m3; }
+            if (round == 4) { recipient = m4; }
+            require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(recipient), "pot must go to this round's member");
+            require(tx.outputs[1].tokenCategory == pusdCategory, "recipient must receive PUSD");
+            require(tx.outputs[1].tokenAmount == pot, "recipient must receive exact PUSD pot");
+            require(tx.outputs[1].value >= 1000, "recipient token output needs BCH dust");
+
+            int surplus = tokenPot - pot;
+            if (surplus > 0) {
+                require(tx.outputs.length == 3, "PUSD surplus output required");
+                require(tx.outputs[2].lockingBytecode == selfLock, "PUSD surplus must return to circle");
+                require(tx.outputs[2].tokenCategory == pusdCategory, "surplus must remain PUSD");
+                require(tx.outputs[2].tokenAmount == surplus, "PUSD surplus must be returned in full");
+                require(tx.outputs[2].value >= 1000, "surplus token output needs BCH dust");
+            } else {
+                require(tx.outputs.length == 2, "no extra outputs");
+            }
+            int bchOut = 0;
+            for (int j = 0; j < tx.outputs.length; j++) { bchOut = bchOut + tx.outputs[j].value; }
+            require(bchIn >= bchOut, "BCH inputs must cover dust outputs");
+            require(bchIn - bchOut <= maxFee, "BCH miner fee exceeds maxFee");
+        }
+    }
+
+    function cancel(
+        pubkey pk0, sig s0, pubkey pk1, sig s1, pubkey pk2, sig s2,
+        pubkey pk3, sig s3, pubkey pk4, sig s4
+    ) {
+        require(this.activeInputIndex == 0, "cancel runs on the state input");
+        require(tx.inputs[0].tokenCategory == stateCategory + 0x01);
+        require(hash160(pk0) == m0 && checkSig(s0, pk0));
+        require(hash160(pk1) == m1 && checkSig(s1, pk1));
+        if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }
+        if (memberCount > 3) { require(hash160(pk3) == m3 && checkSig(s3, pk3)); }
+        if (memberCount > 4) { require(hash160(pk4) == m4 && checkSig(s4, pk4)); }
+        require(memberCount >= 2 && memberCount <= 5);
+    }
+}
