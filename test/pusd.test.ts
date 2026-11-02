@@ -40,7 +40,7 @@ async function fundRound(round:number, amounts=[C,C,C,C,C]) {
   if (round === 0) provider.addUtxo(contract.address,state(round));
   for (const amount of amounts) provider.addUtxo(contract.address,token(PUSD,amount));
 }
-function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=300n, surplus=0n) {
+function payoutTx(st:any, inputs:any[], recipient=members[0], nextRound=1, paid=500n, surplus=0n) {
   const b=new TransactionBuilder({provider});
   b.addInput(st,contract.unlock.payout());
   b.addInputs(inputs,contract.unlock.payout());
@@ -107,6 +107,15 @@ describe('AjoCirclePUSD',()=>{
       .addOutput({to:tokenAddress(members[0].pkh),amount:DUST,token:{category:PUSD,amount:500n}})
       .addOutput({to:tokenAddress(outsider.pkh),amount:DUST,token:{category:PUSD,amount:150n}});
     await expect(b.send()).rejects.toThrow(/PUSD surplus must return to circle/);
+  });
+
+  it('returns valid PUSD surplus to the circle',async()=>{
+    provider.addUtxo(contract.address,state(0));
+    for (const amount of [250n,100n,100n,100n,100n]) provider.addUtxo(contract.address,token(PUSD,amount,5000n));
+    const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
+    await payoutTx(st,ins,members[0],1,500n,150n).send();
+    const remaining=await contract.getUtxos();
+    expect(remaining.filter(u=>u.token?.category===PUSD).reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(150n);
   });
 
   it('rejects a non-member attempting cancel',async()=>{
