@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Compile CashScript contract
+        run: npm run compile
+      - name: Commit regenerated BCH covenant artifact
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node -e "const fs=require('node:fs');const p='contracts/AjoCircle.json';const a=JSON.parse(fs.readFileSync(p,'utf8'));delete a.updatedAt;fs.writeFileSync(p,JSON.stringify(a,null,2)+'\\n')"
+          git add contracts/AjoCircle.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update compiled BCH covenant artifact"
+            git push
+          fi
+      - name: Upload compiled BCH covenant artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-bch-covenant
+          path: contracts/AjoCircle.json
+          if-no-files-found: error
+      - name: Run tests
+        run: npm test
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build web app
+        run: npm run build

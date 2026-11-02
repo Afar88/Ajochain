@@ -110,6 +110,28 @@ describe('AjoCircle covenant: happy path', () => {
     expect(() => buildPayout(p, contract, s.stateUtxo ? [s.stateUtxo] : [], provider)).toThrow(/completed/);
   });
 
+
+  it('rejects a maxFee that leaves less than the dust minimum', () => {
+    const pot = 2n * C;
+    const invalid = { ...params(2), maxFee: pot - STATE_DUST + 1n };
+    expect(() => circleContract(invalid, provider)).toThrow(/maxFee must leave at least 1000 sats for the recipient/);
+  });
+
+  it('accepts the largest fee cap that still leaves a dust-safe recipient output', () => {
+    const valid = { ...params(2), maxFee: 2n * C - STATE_DUST };
+    expect(() => circleContract(valid, provider)).not.toThrow();
+  });
+
+  it('pays tiny input surplus to the recipient instead of miner fees', async () => {
+    await contribute(4);
+    await contribute(1, C + 500n);
+    const r = buildPayout(p, contract, await utxos(), provider);
+    expect(r.amount).toBe(5n * C + 500n - r.fee);
+    await r.builder.send();
+    const paid = await provider.getUtxos(p.members[0]);
+    expect(paid.reduce((sum, u) => sum + u.satoshis, 0n)).toBe(r.amount);
+  });
+
   it('works for a 2-member circle', async () => {
     provider = new MockNetworkProvider();
     p = params(2);
@@ -320,5 +342,35 @@ describe('helpers', () => {
     const other = circleContract({ ...p, stateCategory: 'dd'.repeat(32) }, provider);
     expect(other.address).not.toBe(contract.address);
     expect(binToHex(keys[0].pkh)).toHaveLength(40);
+  });
+});
+
+
+describe('circle share links: validation', () => {
+  it('round-trips valid circle parameters', () => {
+    const original = params(2);
+    const decoded = decodeCircle(encodeCircle(original));
+    expect(decoded.members).toEqual(original.members);
+    expect(decoded.contribution).toBe(original.contribution);
+    expect(decoded.maxFee).toBe(original.maxFee);
+    expect(decoded.network).toBe(original.network);
+  });
+
+  it('rejects malformed base64url data', () => {
+    expect(() => decodeCircle('%%%not-a-link%%%')).toThrow(/Invalid circle link encoding/);
+  });
+
+  it('rejects unsupported networks and malformed member lists', () => {
+    const encode = (value: unknown) => btoa(unescape(encodeURIComponent(JSON.stringify(value))))
+      .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+    expect(() => decodeCircle(encode({ n: 'Test', net: 'regtest', m: [], c: '100000', f: '10000', k: CATEGORY }))).toThrow();
+    expect(() => decodeCircle(encode({ n: 'Test', net: 'chipnet', m: 'not-an-array', c: '100000', f: '10000', k: CATEGORY }))).toThrow();
+  });
+
+  it('rejects a fee cap that consumes the entire decoded pot', () => {
+    const value = { n: 'Test', net: 'chipnet', m: params(2).members, c: '100000', f: '200000', k: CATEGORY };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(value))))
+      .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+    expect(() => decodeCircle(encoded)).toThrow(/maxFee must leave at least 1000 sats for the recipient/);
   });
 });

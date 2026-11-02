@@ -194,6 +194,74 @@ function saveCircle(p: CircleParams) {
   localStorage.setItem('ajo-circles', JSON.stringify(list.slice(0, 20)));
 }
 
+
+// ---------- PUSD stablecoin circles ----------
+import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, PUSD_DUST, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
+import { planPusdGenesis, planPusdContribution } from './pusd-chain';
+
+const encodePusdLink = (p:PusdCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({...p,contribution:p.contribution.toString()})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const decodePusdLink = (s:string):PusdCircleParams => {
+  const raw=decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+  const p=JSON.parse(raw); return {...p,contribution:BigInt(p.contribution)};
+};
+
+function renderPusdCreate() {
+  const addr=wallet.state==='connected'?wallet.address(network):null;
+  app.innerHTML=`<section class="card"><p class="kicker">Experimental · CashTokens PUSD</p><h2>Create a PUSD Ajo circle</h2>
+    <p class="muted">Chipnet testing only. This feature is unaudited. Each member contributes PUSD per round; a separate BCH reserve pays miner fees.</p>
+    <form id="pf">
+      <label>Circle name<input name="name" required maxlength="60" value="Our PUSD Ajo"/></label>
+      <label>Contribution per member (PUSD base units)<input name="amount" type="number" min="1" step="1" required value="1000000"/></label>
+      <fieldset><legend>Members in payout order (2–5)</legend><div id="pmembers">${[addr||'','',''].map((v,i)=>memberRow(v,i)).join('')}</div><button type="button" class="ghost sm" id="padd">+ Add member</button></fieldset>
+      <label>BCH fee reserve (sats)<input name="reserve" type="number" min="1000" step="1" value="${PUSD_DEFAULT_RESERVE}"/></label>
+      <p class="err" id="perr"></p><button class="btn" type="submit">${addr?'Create PUSD circle':'Connect wallet & create'}</button>
+    </form></section>`;
+  $('#padd').onclick=()=>{const el=$('#pmembers');if(el.children.length<5)el.insertAdjacentHTML('beforeend',memberRow('',el.children.length));};
+  $<HTMLFormElement>('#pf').onsubmit=async ev=>{
+    ev.preventDefault();const err=$('#perr');err.textContent='';
+    try{
+      const fd=new FormData($<HTMLFormElement>('#pf'));
+      const members=(fd.getAll('m') as string[]).map(x=>x.trim()).filter(Boolean);
+      if(members.length<2||members.length>5)throw new Error('Enter 2–5 member addresses');
+      const amount=BigInt(String(fd.get('amount')));if(amount<=0n)throw new Error('Contribution must be positive');
+      const base={name:String(fd.get('name')),network,members,contribution:amount,pusdCategory:PUSD_CATEGORY};
+      const a=wallet.state==='connected'?wallet.address(network):null;if(!a){openWalletModal();throw new Error('Connect your wallet first');}
+      err.textContent='Preparing PUSD state NFT and BCH fee reserve…';
+      const g=await planPusdGenesis(base,a,BigInt(String(fd.get('reserve'))));
+      err.textContent='Approve the creation transaction in your wallet…';
+      await wallet.signAndBroadcast(g.wc,g.walletInputs,'Create PUSD Ajo circle');
+      const p=g.params;location.hash=`#/p/${encodePusdLink(p)}`;
+    }catch(e:any){err.textContent=String(e.message||e);}
+  };
+}
+
+async function renderPusdCircle(encoded:string){
+  let p:PusdCircleParams;try{p=decodePusdLink(encoded);}catch{app.innerHTML='<section class="card"><p class="err">Invalid PUSD circle link.</p></section>';return;}
+  if(p.network!==network){network=p.network;localStorage.setItem('ajo-net',network);renderHeader();}
+  const offlineContract=pusdContract(p,offline(p.network));
+  let provider:Awaited<ReturnType<typeof getProvider>>|null=null;
+  let contract=offlineContract;
+  app.innerHTML=`<section class="card"><p class="kicker">${p.network} · experimental PUSD circle</p><h2>${esc(p.name)}</h2>
+    <p class="muted">${p.members.length} members · ${p.contribution.toString()} PUSD base units each per round</p>
+    <p>Contract: <code class="addr">${contract.address}</code></p><div id="pstatus"><p class="muted">Reading circle UTXOs…</p></div>
+    <div class="actions"><button class="ghost sm" id="prefresh">Refresh</button>${wallet.state==='connected'?'<button class="sm" id="pcontribute">Contribute PUSD</button>':''}</div><p class="err" id="plerr"></p></section>`;
+  const load=async()=>{
+    try{
+      if(!provider){provider=await getProvider(p.network);contract=pusdContract(p,provider);}
+      const utxos=await contract.getUtxos();const s=pusdStatus(p,utxos);
+      $('#pstatus').innerHTML=`<p><b>Round:</b> ${s.round===null?'Not started':s.round+1+' of '+p.members.length}</p>
+        <p><b>PUSD collected:</b> ${s.available.toString()} / ${s.required.toString()} base units</p>
+        <p><b>BCH fee reserve UTXOs:</b> ${s.reserveUtxos.length}</p>
+        <p><b>Next recipient:</b> ${s.round===null?'—':'Member '+(s.round+1)}</p>
+        <div class="actions"><button class="btn" id="ppayout" ${s.ready?'':'disabled'}>Pay out PUSD round</button></div>`;
+      $('#ppayout').onclick=async()=>{try{const result=buildPusdPayout(p,contract,utxos,provider!);const txid=await provider!.sendRawTransaction(result.builder.build());$('#plerr').innerHTML=`PUSD payout broadcast: <a href="${explorerTx(p.network,txid)}" target="_blank" rel="noopener">View transaction</a>`;setTimeout(load,2500);}catch(e:any){$('#plerr').textContent=String(e.message||e);}};
+    }catch(e:any){$('#pstatus').innerHTML=`<p class="err">${esc(String(e.message||e))}</p>`;}
+  };
+  $('#prefresh').onclick=load;
+  const pc=$('#pcontribute');if(pc)pc.onclick=async()=>{try{const a=wallet.address(p.network)!;const c=await planPusdContribution(p,a);await wallet.signAndBroadcast(c.wc,c.walletInputs,'PUSD circle contribution');setTimeout(load,2500);}catch(e:any){$('#plerr').textContent=String(e.message||e);}};
+  await load();
+}
+
 // ---------- Live circle ----------
 async function renderCircle(encoded: string, manual: boolean) {
   let p: CircleParams;
@@ -259,6 +327,8 @@ function route() {
   renderHeader();
   const h = location.hash || '#/';
   document.querySelectorAll('nav a').forEach((a) => a.classList.toggle('on', h.startsWith((a as HTMLAnchorElement).getAttribute('href')!) && (a as HTMLAnchorElement).getAttribute('href') !== '#/' || ((a as HTMLAnchorElement).getAttribute('href') === '#/' && (h === '#/' || h === '#demo'))));
+  if (h.startsWith('#/pusd/create')) return renderPusdCreate();
+  if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
   if (h.startsWith('#/create')) return renderCreate();
   if (h.startsWith('#/mine')) return renderMine();
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }

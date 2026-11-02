@@ -1,0 +1,124 @@
+pragma cashscript ^0.14.0;
+
+// PUSD variant of AjoCircle. PUSD UTXOs carry their own BCH backing; a
+// separate token-free BCH UTXO funds miner fees. Token backing is preserved.
+contract AjoCirclePUSD(
+    bytes20 m0, bytes20 m1, bytes20 m2, bytes20 m3, bytes20 m4,
+    int memberCount,
+    int contribution,
+    bytes32 stateCategory,
+    bytes32 pusdCategory
+) {
+    function payout() {
+        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
+        if (this.activeInputIndex != 0) {
+            require(tx.inputs[0].lockingBytecode == selfLock, "input 0 must be this circle");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "input 0 must hold the state NFT");
+            // PUSD inputs carry the contribution token; the dedicated BCH
+            // reserve input is also spent by this covenant but carries no token.
+            if (tx.inputs[this.activeInputIndex].tokenCategory == pusdCategory) {
+                require(tx.inputs[this.activeInputIndex].tokenAmount > 0, "empty PUSD contribution");
+            } else {
+                require(tx.inputs[this.activeInputIndex].tokenCategory == 0x, "input must be PUSD or BCH reserve");
+                require(tx.inputs[this.activeInputIndex].tokenAmount == 0, "BCH reserve cannot contain tokens");
+            }
+        } else {
+            require(stateCategory != pusdCategory, "state and PUSD categories must differ");
+            require(memberCount >= 2 && memberCount <= 5, "member count must be 2-5");
+            require(contribution > 0, "contribution must be positive");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT must be mutable, right category");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
+            int round = int(tx.inputs[0].nftCommitment);
+            require(round >= 0 && round < memberCount, "circle already completed");
+
+            int stateValue = tx.inputs[0].value;
+            int tokenPot = 0;
+            int tokenBchIn = 0;
+            int reserveBchIn = 0;
+            int bchIn = stateValue;
+            for (int i = 1; i < tx.inputs.length; i++) {
+                require(tx.inputs[i].lockingBytecode == selfLock, "all inputs must be circle UTXOs");
+                bchIn = bchIn + tx.inputs[i].value;
+                if (tx.inputs[i].tokenCategory == pusdCategory) {
+                    require(tx.inputs[i].tokenAmount > 0, "empty PUSD contribution");
+                    tokenPot = tokenPot + tx.inputs[i].tokenAmount;
+                    tokenBchIn = tokenBchIn + tx.inputs[i].value;
+                } else {
+                    require(tx.inputs[i].tokenCategory == 0x, "contribution must be PUSD or BCH reserve");
+                    require(tx.inputs[i].tokenAmount == 0, "fee reserve cannot contain tokens");
+                    reserveBchIn = reserveBchIn + tx.inputs[i].value;
+                }
+            }
+            require(reserveBchIn > 0, "BCH fee reserve input required");
+            int pot = memberCount * contribution;
+            require(tokenPot >= pot, "PUSD pot not full yet");
+
+            require(tx.outputs[0].lockingBytecode == selfLock, "state must stay in circle");
+            require(tx.outputs[0].tokenCategory == stateCategory + 0x01, "state NFT must stay mutable");
+            require(tx.outputs[0].tokenAmount == 0);
+            require(tx.outputs[0].nftCommitment == toPaddedBytes(round + 1, 1), "round must increment by one");
+            require(tx.outputs[0].value == stateValue, "state value preserved");
+
+            bytes20 recipient = m0;
+            if (round == 1) { recipient = m1; }
+            if (round == 2) { recipient = m2; }
+            if (round == 3) { recipient = m3; }
+            if (round == 4) { recipient = m4; }
+            require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(recipient), "pot must go to this round's member");
+            require(tx.outputs[1].tokenCategory == pusdCategory, "recipient must receive PUSD");
+            require(tx.outputs[1].tokenAmount == pot, "recipient must receive exact PUSD pot");
+            require(tx.outputs[1].value >= 1000, "recipient token output needs BCH dust");
+
+            int surplus = tokenPot - pot;
+            int tokenBchOut = tx.outputs[1].value;
+            int reserveChangeIndex = 2;
+            if (surplus > 0) {
+                require(tx.outputs.length == 4, "PUSD surplus and BCH reserve change required");
+                require(tx.outputs[2].lockingBytecode == selfLock, "PUSD surplus must return to circle");
+                require(tx.outputs[2].tokenCategory == pusdCategory, "surplus must remain PUSD");
+                require(tx.outputs[2].tokenAmount == surplus, "PUSD surplus must be returned in full");
+                require(tx.outputs[2].value >= 1000, "surplus token output needs BCH dust");
+                tokenBchOut = tokenBchOut + tx.outputs[2].value;
+                reserveChangeIndex = 3;
+            } else {
+                require(tx.outputs.length == 3, "BCH reserve change output required");
+            }
+
+            // Preserve all BCH backing carried by PUSD inputs. Only the
+            // separately supplied token-free BCH reserve can pay miner fees.
+            require(tokenBchOut >= tokenBchIn, "PUSD BCH backing must be preserved");
+            require(tx.outputs[reserveChangeIndex].lockingBytecode == selfLock, "unused BCH reserve must return to circle");
+            require(tx.outputs[reserveChangeIndex].tokenCategory == 0x, "BCH reserve change cannot contain tokens");
+            require(tx.outputs[reserveChangeIndex].tokenAmount == 0, "BCH reserve change cannot contain tokens");
+            require(tx.outputs[reserveChangeIndex].value >= 1000, "BCH reserve change needs dust");
+
+            int bchOut = 0;
+            for (int j = 0; j < tx.outputs.length; j++) { bchOut = bchOut + tx.outputs[j].value; }
+            require(bchIn >= bchOut, "BCH inputs must cover outputs");
+            require(bchIn - bchOut <= reserveBchIn, "miner fee exceeds funded BCH reserve");
+        }
+    }
+
+    function cancel(
+        pubkey pk0, sig s0, pubkey pk1, sig s1, pubkey pk2, sig s2,
+        pubkey pk3, sig s3, pubkey pk4, sig s4
+    ) {
+        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
+        // Every contract UTXO being cancelled must authorize the same
+        // transaction. The state NFT remains the canonical input at index 0.
+        if (this.activeInputIndex == 0) {
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
+        } else {
+            require(tx.inputs[0].lockingBytecode == selfLock, "all cancelled inputs must belong to this circle");
+            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
+            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
+        }
+        require(hash160(pk0) == m0 && checkSig(s0, pk0));
+        require(hash160(pk1) == m1 && checkSig(s1, pk1));
+        if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }
+        if (memberCount > 3) { require(hash160(pk3) == m3 && checkSig(s3, pk3)); }
+        if (memberCount > 4) { require(hash160(pk4) == m4 && checkSig(s4, pk4)); }
+        require(memberCount >= 2 && memberCount <= 5);
+    }
+}

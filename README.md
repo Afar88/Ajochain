@@ -16,6 +16,13 @@
 
 ---
 
+
+### PUSD circles (experimental)
+
+AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
+
+PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. The experimental web flow now supports Chipnet circle creation, wallet-funded PUSD contributions, live status, and permissionless payouts. PUSD creation and contribution transactions use WizardConnect; payout uses the covenant. Tests use CashScript's MockNetworkProvider only. Cancellation still requires every member's signature and has no in-app multi-wallet signing flow. **Chipnet only; unaudited; do not use with mainnet funds.**
+
 ## The problem
 
 Ajo (Yoruba), Esusu, Susu or *adashe* is how tens of millions of people across Nigeria and West Africa save, especially market traders, artisans and people the banks don't serve well. It works on trust, and one person, the *alajo* or treasurer, holds everyone's cash between payouts. When the treasurer disappears, gets robbed, or "borrows" the pot, the whole circle loses. Members also can't easily check the balance or whose turn it is.
@@ -59,8 +66,8 @@ Constructor: `m0..m4` (member pubkey hashes, unused slots zero), `memberCount` (
   - holds a **mutable** NFT of the pinned `stateCategory`; `round = commitment`, and `round < memberCount`
   - **every** input is a UTXO of this circle (so the pot can't be faked with outside coins), and their sum (excluding the state UTXO) is `≥ memberCount × contribution`
   - output 0 returns the state NFT to the circle, same value, same category, still mutable, `commitment == round + 1`
-  - output 1 pays `member[round]` (P2PKH) at least `pot − maxFee`; no tokens
-  - any surplus ≥ 1000 sats must go back to the circle in output 2; otherwise exactly 2 outputs. No extra outputs.
+  - output 1 pays `member[round]` (P2PKH), with the miner fee capped by `maxFee`, which must leave at least 1,000 sats for a dust-safe recipient output; no tokens
+  - any surplus ≥ 1000 sats must go back to the circle in output 2. A surplus below 1000 sats cannot form a dust-safe change output, so it is paid to the recipient; otherwise exactly 2 outputs. No extra outputs.
 
 **`cancel(pk0, s0, …, pk4, s4)`**: an emergency exit. **All** `memberCount` members sign, and together they decide where the funds go (no output restrictions).
 
@@ -89,19 +96,20 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Tests
 
-`npm test` gives **24 passing tests** (`test/ajo.test.ts`, `test/demo.test.ts`), all on `MockNetworkProvider` with full VM validation:
+`npm test` runs the BCH, PUSD, and browser-demo suites (43 tests total), all on `MockNetworkProvider` with full VM validation:
 
 - Happy path: a full 5-round circle paying each member in order, a 2-member circle, uneven contribution sizes, surplus returned to the circle (3rd output), early contributions left for the next round, payout refused before the pot is full or after the circle completes.
 - Attacks rejected (each asserts the specific `require` that fires): paying the wrong member, paying an outsider, not incrementing the round, underpaying the recipient (fee > maxFee), skimming an extra output, moving the state NFT out of the circle, spending contributions without the state UTXO, a fake state NFT of another category, an immutable NFT as state, mixing in outside inputs.
 - Cancel: works with all member signatures and fails with one wrong signer.
 - Helpers: share-link round trip and parameter validation; the in-browser demo flow end to end.
+- PUSD: five-round token payouts, wrong-category rejection, one-unit shortfall, wrong recipient, skipped round, surplus theft, state-NFT token contamination rejection, unanimous multi-input cancellation, and non-member cancellation rejection.
 
 ## Limitations (honest list)
 
-- **Unaudited hackathon MVP.** Use chipnet. Mainnet is switchable but not recommended.
+- **Unaudited hackathon MVP.** Use chipnet. The BCH flow can switch to mainnet with a warning; PUSD is programmatically restricted to chipnet.
 - **Up to 5 members**, fixed order. Bigger circles mean more constructor slots (or a merkle-root of members).
 - **No enforcement of who contributed.** The covenant counts BCH, not *who* paid it. If a member doesn't pay, the pot just isn't full and the payout waits. Social pressure (as with traditional Ajo) still decides what happens with late payers. Members who already received the pot can't be forced to keep paying. That's the core trust problem of any ROSCA, and solving it needs collateral (see roadmap).
-- **Fee comes from the pot** (≤ `maxFee`, default 10,000 sats). The payout picks the largest contribution UTXOs first to keep the tx small; many tiny contributions could exceed `maxFee`.
+- **Fee comes from the BCH pot** (≤ `maxFee`, default 10,000 sats). The payout picks the largest contribution UTXOs first to keep the tx small; many tiny contributions could exceed `maxFee`. Any surplus below 1,000 sats is included in the recipient's payment rather than treated as miner fee.
 - **Cancel** needs every member's signature, and the web UI doesn't build cancel txs yet (contract + tests only).
 - **WizardConnect**: integrated with the official `@wizardconnect/core` / `@wizardconnect/dapp` packages (pairing QR, session resume, sign + broadcast for genesis and contributions). It is **not yet tested end to end against a real WizardConnect wallet**, and the dapp only uses the wallet's receive address #0. The npm metadata of `@wizardconnect/dapp` lists its license as "Proprietary" (the React package says LGPL-3.0); check this before any production use.
 - **Genesis needs a wallet coin at output #0** (CashTokens rule). If your wallet has none, send yourself a small amount first. Advanced users can mint the state NFT manually from any CashTokens wallet using the "Genesis txid" option.
@@ -109,7 +117,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## Roadmap
 
-- **Stablecoin circles (PUSD / CashTokens FTs)**: contributions in a fungible token so savings don't swing with BCH price. The covenant change is small (sum `tokenAmount` of a pinned FT category instead of `value`). Not done in this MVP.
+- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental Chipnet UI supports creation, contributions, live status, and permissionless payouts. Real Chipnet wallet testing, cancellation signing UX, end-to-end tests against the network, and independent audit remain outstanding.
 - **Collateral / late-payer penalties**: members lock a deposit that's slashed if they skip a round after being paid.
 - **Per-member contribution receipts**: small NFTs per payment so the app can show *who* paid each round.
 - **Timed rounds** (`tx.time`), cancel builder in the UI, more members via merkle proofs, Naira price display, WhatsApp share links.
