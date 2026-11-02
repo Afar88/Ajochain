@@ -77,6 +77,14 @@ describe('AjoCirclePUSD',()=>{
     }
   });
 
+  it('rejects fungible tokens attached to the state NFT',async()=>{
+    const contaminated=randomUtxo({satoshis:STATE_SATS,token:{category:STATE,amount:1n,nft:{capability:'mutable',commitment:'00'}}});
+    provider.addUtxo(contract.address,contaminated);
+    for (let i=0;i<5;i++) provider.addUtxo(contract.address,token());
+    const all=await contract.getUtxos(), st=all.find(u=>u.token?.category===STATE)!, ins=all.filter(u=>u.token?.category===PUSD);
+    await expect((await payoutTx(st,ins,members[0],1,500n)).send()).rejects.toThrow(/state NFT cannot carry fungible tokens/);
+  });
+
   it('rejects a contribution using the wrong token category',async()=>{
     const st=randomUtxo({satoshis:3500n,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}}), bad=randomUtxo({satoshis:3500n,token:{category:'cd'.repeat(32),amount:300n}});
     provider.addUtxo(contract.address,st);
