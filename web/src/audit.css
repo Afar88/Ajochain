@@ -6,6 +6,24 @@
   outline-offset: 3px;
 }
 
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  transform: translateY(-160%);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--clay, #7a2e12);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 button, .btn, .btnlink, a.choice, nav a {
   -webkit-tap-highlight-color: transparent;
 }
@@ -62,18 +80,9 @@ input:focus, textarea:focus, select:focus {
   outline: none;
 }
 
-.maddr {
-  margin-bottom: 8px;
-}
-
-.actions {
-  flex-wrap: wrap;
-}
-
-.qr {
-  max-width: min(240px, 100%);
-  height: auto;
-}
+.maddr { margin-bottom: 8px; }
+.actions { flex-wrap: wrap; }
+.qr { max-width: min(240px, 100%); height: auto; }
 
 .addr {
   display: block;
@@ -86,85 +95,36 @@ input:focus, textarea:focus, select:focus {
   font-size: 12px;
 }
 
-.err:empty {
-  display: none;
+.err:empty { display: none; }
+.note, .err { overflow-wrap: anywhere; }
+button:disabled { filter: saturate(.7); }
+
+.modal.show {
+  overscroll-behavior: contain;
 }
 
-.note, .err {
-  overflow-wrap: anywhere;
-}
-
-button:disabled {
-  filter: saturate(.7);
+.sheet {
+  max-height: min(90dvh, 720px);
+  overflow-y: auto;
 }
 
 @media (max-width: 650px) {
-  body {
-    padding-bottom: 76px;
-  }
-
-  header {
-    align-items: flex-start;
-  }
-
-  .brand {
-    font-size: 22px;
-  }
-
-  .hdr-right {
-    max-width: 68%;
-  }
-
-  .hdr-right button {
-    min-height: 42px;
-    padding: 9px 11px;
-    font-size: 13px;
-  }
-
-  main {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
-  }
-
-  .hero {
-    padding-top: 34px !important;
-  }
-
-  .hero h1 {
-    font-size: clamp(38px, 12vw, 58px) !important;
-    line-height: .98;
-  }
-
-  .cta, .actions {
-    width: 100%;
-  }
-
-  .cta > *, .actions > .btn, .actions > button {
-    flex: 1 1 145px;
-  }
-
-  .status-row {
-    align-items: flex-start;
-  }
-
-  .status-row h2 {
-    margin-top: 0;
-  }
-
-  fieldset {
-    min-width: 0;
-  }
-
-  nav a {
-    flex: 1 1 0;
-    min-width: 0;
-    padding-inline: 8px;
-  }
+  body { padding-bottom: 76px; }
+  header { align-items: flex-start; }
+  .brand { font-size: 22px; }
+  .hdr-right { max-width: 68%; }
+  .hdr-right button { min-height: 42px; padding: 9px 11px; font-size: 13px; }
+  main { padding-left: 14px !important; padding-right: 14px !important; }
+  .hero { padding-top: 34px !important; }
+  .hero h1 { font-size: clamp(38px, 12vw, 58px) !important; line-height: .98; }
+  .cta, .actions { width: 100%; }
+  .cta > *, .actions > .btn, .actions > button { flex: 1 1 145px; }
+  .status-row { align-items: flex-start; }
+  .status-row h2 { margin-top: 0; }
+  fieldset { min-width: 0; }
+  nav a { flex: 1 1 0; min-width: 0; padding-inline: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    scroll-behavior: auto !important;
-    transition: none !important;
-  }
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
