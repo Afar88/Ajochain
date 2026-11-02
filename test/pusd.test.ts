@@ -6,7 +6,7 @@ import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' }
 const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 const STATE = 'ab'.repeat(32);
 const DUST = 1000n;
-const INPUT_SATS = 1500n;
+const INPUT_SATS = 2500n;
 const C = 100n;
 const members = [1,2,3].map(i => {
   const priv = new Uint8Array(32); priv[31] = i;
