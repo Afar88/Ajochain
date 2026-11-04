@@ -30,7 +30,7 @@ function renderHeader() {
       <button class="net ${network}" id="netBtn" title="Switch network">${network === 'chipnet' ? 'Chipnet (test)' : 'Mainnet'}</button>
       ${w.state === 'connected'
         ? `<button class="wallet on" id="walletBtn" title="Disconnect">${esc(w.walletName || 'Wallet')} · ${addr ? short(addr) : ''}</button>`
-        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : 'Connect wallet'}</button>`}
+        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : 'Connect wallet'}</button>`}
     </div>`;
   $('#netBtn').onclick = () => {
     const next: Net = network === 'chipnet' ? 'mainnet' : 'chipnet';
@@ -40,8 +40,8 @@ function renderHeader() {
   $('#walletBtn').onclick = () => (w.state === 'connected' ? w.disconnect() : openWalletModal());
 }
 
-async function openWalletModal() {
-  if (wallet.state !== 'connecting') wallet.connect();
+async function openWalletModal(startConnection = true) {
+  if (startConnection && (wallet.state === 'idle' || wallet.state === 'disconnected')) wallet.connect();
   const m = $('#modal');
   m.classList.add('show');
   const draw = async () => {
@@ -59,7 +59,7 @@ async function openWalletModal() {
   };
   draw();
 }
-wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) openWalletModal(); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/create')) route(); });
+wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) openWalletModal(false); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/create')) route(); });
 
 // ---------- shared circle widgets ----------
 function roundTrack(names: string[], round: number | null, completed: boolean) {
