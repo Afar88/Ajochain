@@ -35,7 +35,7 @@ function renderHeader() {
     if (next === 'mainnet' && !confirm('Mainnet uses real BCH. AjoChain is an unaudited MVP. Switch only if you understand the risks.')) return;
     network = next; localStorage.setItem('ajo-net', network); route();
   };
-  $('#walletBtn').onclick = () => (w.state === 'connected' ? w.disconnect() : openWalletModal());
+  $('#walletBtn').onclick = () => (w.state === 'connected' ? openWalletDetails() : openWalletModal());
 }
 
 async function openWalletModal() {
@@ -50,6 +50,33 @@ async function openWalletModal() {
   };
   draw();
 }
+function openWalletDetails() {
+  const m = $('#modal');
+  const addr = wallet.address(network);
+  m.innerHTML = `<div class="sheet wallet-details">
+    <p class="kicker">Wallet connected</p>
+    <h3>${esc(wallet.walletName || 'Selene wallet')}</h3>
+    <p class="muted small">Network: ${network === 'chipnet' ? 'Chipnet testnet' : 'BCH Mainnet'}</p>
+    <p class="wallet-address-label">AjoChain signing address</p>
+    <code class="addr" id="walletAddress">${esc(addr || 'Address unavailable')}</code>
+    <button class="ghost sm" id="copyWalletAddress" ${addr ? '' : 'disabled'}>Copy address</button>
+    <div class="wallet-menu-actions">
+      <button class="ghost" id="closeWalletDetails">Close</button>
+      <button class="danger" id="disconnectWallet">Disconnect wallet</button>
+    </div>
+    <p class="muted small">Disconnecting is separate from viewing your wallet details.</p>
+  </div>`;
+  m.classList.add('show');
+  $('#closeWalletDetails', m).onclick = () => m.classList.remove('show');
+  const copy = $('#copyWalletAddress', m);
+  if (copy && addr) copy.onclick = () => navigator.clipboard.writeText(addr);
+  $('#disconnectWallet', m).onclick = async () => {
+    if (!confirm('Disconnect your wallet from AjoChain?')) return;
+    m.classList.remove('show');
+    await wallet.disconnect();
+  };
+}
+
 wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) openWalletModal(); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') || location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create')) route(); });
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
