@@ -3,13 +3,57 @@
 // derives receive addresses locally and asks the wallet to sign transactions.
 import { initiateDappRelay, type DappRelayResult } from '@wizardconnect/core';
 import { DappConnectionManager, loadSession } from '@wizardconnect/dapp';
-import { hash160, stringify } from '@bitauth/libauth';
+import { binToHex, encodeTransaction, hash160 } from '@bitauth/libauth';
+import { sourceOutputToRelay } from '@wizardconnect/core/hdwalletv1-serialize';
 import { pkhToAddress, type Net } from '../../src/lib/ajo';
 import { getProvider } from './chain';
 
 export type WalletState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnecting' | 'disconnected';
 
 type Listener = () => void;
+
+/**
+ * Convert CashScript's native transaction object to WizardConnect's canonical
+ * relay representation. Transactions travel as raw hex; source outputs use
+ * WizardConnect's serializer (hex byte arrays and extended-JSON BigInts).
+ */
+export function buildWizardSignRequest(
+  wcObject: any,
+  walletInputs: number[],
+  receiveIndex: number,
+  prompt: string,
+) {
+  const transaction = wcObject?.transaction;
+  const sourceOutputs = wcObject?.sourceOutputs;
+  if (!Array.isArray(transaction?.inputs) || !Array.isArray(transaction?.outputs) ||
+      !Array.isArray(sourceOutputs) || sourceOutputs.length !== transaction.inputs.length) {
+    throw new Error('CashScript returned an incomplete wallet-signing request (transaction/source-output count mismatch).');
+  }
+
+  const inputPaths = walletInputs.map((inputIndex) => {
+    if (!Number.isInteger(inputIndex) || inputIndex < 0 || inputIndex >= transaction.inputs.length) {
+      throw new Error(`Invalid wallet signing input index: ${inputIndex}`);
+    }
+    return [inputIndex, 'receive', receiveIndex] as [number, string, number];
+  });
+  if (new Set(walletInputs).size !== walletInputs.length) {
+    throw new Error('Wallet signing request contains duplicate input indexes.');
+  }
+
+  const relaySourceOutputs = transaction.inputs.map((input: unknown, index: number) =>
+    sourceOutputToRelay({ ...(input as object), ...sourceOutputs[index] }),
+  );
+
+  return {
+    transaction: {
+      transaction: binToHex(encodeTransaction(transaction)),
+      sourceOutputs: relaySourceOutputs,
+      broadcast: false,
+      userPrompt: prompt,
+    },
+    inputPaths,
+  };
+}
 
 class WizardWallet {
   state: WalletState = 'idle';
@@ -173,25 +217,8 @@ class WizardWallet {
     if (!this.mgr || this.state !== 'connected') throw new Error('Connect a wallet first');
     const mgr = this.mgr;
     const generation = this.generation;
-    if (!wcObject?.transaction || !Array.isArray(wcObject?.sourceOutputs)) {
-      throw new Error('CashScript returned an incomplete wallet-signing request');
-    }
-
-    // WizardConnect's relay uses JSON transport. Encode the entire CashScript
-    // WcTransactionObject with Libauth stringify, then parse it back into the
-    // extended-JSON representation expected by WizardConnect and Selene.
-    // Serializing only the nested transaction/sourceOutputs fields as strings
-    // produces an invalid signing request and can prevent wallet approval.
-    const encodedRequest = JSON.parse(stringify({
-      ...wcObject,
-      broadcast: false,
-      userPrompt: prompt,
-    }));
-
-    const res = await mgr.signTransaction({
-      transaction: encodedRequest,
-      inputPaths: walletInputs.map((i) => [i, 'receive', this.receiveIndex] as [number, string, number]),
-    });
+    const request = buildWizardSignRequest(wcObject, walletInputs, this.receiveIndex, prompt);
+    const res = await mgr.signTransaction(request);
     if (!this.isCurrent(mgr, generation) || this.state !== 'connected') {
       throw new Error('Wallet connection changed before signing completed. Please reconnect and try again.');
     }
