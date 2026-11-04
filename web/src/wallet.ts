@@ -172,22 +172,23 @@ class WizardWallet {
     if (!this.mgr || this.state !== 'connected') throw new Error('Connect a wallet first');
     const mgr = this.mgr;
     const generation = this.generation;
-    // CashScript's WC payload contains BigInt and Uint8Array values. WizardConnect
-    // transports JSON, so encode the transaction and source outputs with Libauth's
-    // extended JSON format; Selene can restore the original binary and bigint types.
-    const transaction = wcObject?.transaction;
-    const sourceOutputs = wcObject?.sourceOutputs;
-    if (!transaction || !Array.isArray(sourceOutputs)) {
+    if (!wcObject?.transaction || !Array.isArray(wcObject?.sourceOutputs)) {
       throw new Error('CashScript returned an incomplete wallet-signing request');
     }
+
+    // WizardConnect's relay uses JSON transport. Encode the entire CashScript
+    // WcTransactionObject with Libauth stringify, then parse it back into the
+    // extended-JSON representation expected by WizardConnect and Selene.
+    // Serializing only the nested transaction/sourceOutputs fields as strings
+    // produces an invalid signing request and can prevent wallet approval.
+    const encodedRequest = JSON.parse(stringify({
+      ...wcObject,
+      broadcast: true,
+      userPrompt: prompt,
+    }));
+
     const res = await mgr.signTransaction({
-      transaction: {
-        ...wcObject,
-        transaction: typeof transaction === 'string' ? transaction : stringify(transaction),
-        sourceOutputs: stringify(sourceOutputs),
-        broadcast: true,
-        userPrompt: prompt,
-      },
+      transaction: encodedRequest,
       inputPaths: walletInputs.map((i) => [i, 'receive', this.receiveIndex] as [number, string, number]),
     });
     if (!this.isCurrent(mgr, generation) || this.state !== 'connected') {
