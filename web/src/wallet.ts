@@ -26,7 +26,7 @@ class WizardWallet {
   private emit() { this.listeners.forEach((f) => f()); }
 
   connect(existing?: { privateKey: string; secret: string; walletPublicKey: string }) {
-    if (this.state === 'connecting' || this.state === 'connected') return;
+    if (this.state === 'connecting' || this.state === 'reconnecting' || this.state === 'connected') return;
     this.error = null;
     this.state = 'connecting';
     const icon = new URL('favicon.svg', location.href).toString();
