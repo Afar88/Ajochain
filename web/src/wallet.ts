@@ -26,6 +26,7 @@ class WizardWallet {
   private emit() { this.listeners.forEach((f) => f()); }
 
   connect(existing?: { privateKey: string; secret: string; walletPublicKey: string }) {
+    // A reconnecting manager owns its retry loop; never create a second relay.
     if (this.state === 'connecting' || this.state === 'reconnecting' || this.state === 'connected') return;
     this.error = null;
     this.state = 'connecting';
