@@ -3,7 +3,7 @@
 // derives receive addresses locally and asks the wallet to sign transactions.
 import { initiateDappRelay, type DappRelayResult } from '@wizardconnect/core';
 import { DappConnectionManager, loadSession } from '@wizardconnect/dapp';
-import { hash160 } from '@bitauth/libauth';
+import { hash160, stringify } from '@bitauth/libauth';
 import { pkhToAddress, type Net } from '../../src/lib/ajo';
 
 export type WalletState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnecting' | 'disconnected';
@@ -172,8 +172,22 @@ class WizardWallet {
     if (!this.mgr || this.state !== 'connected') throw new Error('Connect a wallet first');
     const mgr = this.mgr;
     const generation = this.generation;
+    // CashScript's WC payload contains BigInt and Uint8Array values. WizardConnect
+    // transports JSON, so encode the transaction and source outputs with Libauth's
+    // extended JSON format; Selene can restore the original binary and bigint types.
+    const transaction = wcObject?.transaction;
+    const sourceOutputs = wcObject?.sourceOutputs;
+    if (!transaction || !Array.isArray(sourceOutputs)) {
+      throw new Error('CashScript returned an incomplete wallet-signing request');
+    }
     const res = await mgr.signTransaction({
-      transaction: { ...wcObject, broadcast: true, userPrompt: prompt },
+      transaction: {
+        ...wcObject,
+        transaction: typeof transaction === 'string' ? transaction : stringify(transaction),
+        sourceOutputs: stringify(sourceOutputs),
+        broadcast: true,
+        userPrompt: prompt,
+      },
       inputPaths: walletInputs.map((i) => [i, 'receive', this.receiveIndex] as [number, string, number]),
     });
     if (!this.isCurrent(mgr, generation) || this.state !== 'connected') {
