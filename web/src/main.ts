@@ -57,9 +57,15 @@ function openWalletDetails() {
     <p class="kicker">Wallet connected</p>
     <h3>${esc(wallet.walletName || 'Selene wallet')}</h3>
     <p class="muted small">Network: ${network === 'chipnet' ? 'Chipnet testnet' : 'BCH Mainnet'}</p>
-    <p class="wallet-address-label">AjoChain signing address</p>
+    <p class="wallet-address-label">WizardConnect receive address (index ${wallet.receiveIndex})</p>
     <code class="addr" id="walletAddress">${esc(addr || 'Address unavailable')}</code>
     <button class="ghost sm" id="copyWalletAddress" ${addr ? '' : 'disabled'}>Copy address</button>
+    <div class="wallet-address-check">
+      <label for="seleneReceiveAddress">Match the receive address shown in Selene</label>
+      <input id="seleneReceiveAddress" class="addr-input" placeholder="Paste Selene BCH receive address" autocomplete="off" />
+      <button class="ghost sm" id="matchSeleneAddress">Find matching WizardConnect address</button>
+      <p class="muted small" id="addressMatchResult">Checks receive indices 0–50 from the WizardConnect xpub. No private keys are requested.</p>
+    </div>
     <div class="wallet-menu-actions">
       <button class="ghost" id="closeWalletDetails">Close</button>
       <button class="danger" id="disconnectWallet">Disconnect wallet</button>
@@ -70,6 +76,21 @@ function openWalletDetails() {
   $('#closeWalletDetails', m).onclick = () => m.classList.remove('show');
   const copy = $('#copyWalletAddress', m);
   if (copy && addr) copy.onclick = () => navigator.clipboard.writeText(addr);
+  $('#matchSeleneAddress', m).onclick = () => {
+    const field = $<HTMLInputElement>('#seleneReceiveAddress', m);
+    const result = $('#addressMatchResult', m);
+    const entered = field.value.trim();
+    if (!entered) { result.textContent = 'Paste the receive address shown in Selene first.'; return; }
+    try {
+      const index = wallet.matchReceiveAddress(entered, network, 50);
+      if (index === null) {
+        result.textContent = 'No match in receive indices 0–50. Do not send funds; we need to inspect Selene’s exported public derivation details.';
+      } else {
+        result.textContent = `Matched Selene to WizardConnect receive index ${index}. AjoChain will now display and sign with this same index.`;
+        openWalletDetails();
+      }
+    } catch (e: any) { result.textContent = String(e.message || e); }
+  };
   $('#disconnectWallet', m).onclick = async () => {
     if (!confirm('Disconnect your wallet from AjoChain?')) return;
     m.classList.remove('show');
