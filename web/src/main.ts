@@ -39,23 +39,47 @@ function renderHeader() {
 }
 
 let walletModalRender = 0;
+let walletQrUri: string | null = null;
+let walletQrDataUrl = '';
+let walletQrPromise: Promise<string> | null = null;
+
+async function getWalletQr(uri: string): Promise<string> {
+  if (walletQrUri === uri && walletQrDataUrl) return walletQrDataUrl;
+  if (walletQrUri === uri && walletQrPromise) return walletQrPromise;
+  walletQrUri = uri;
+  walletQrDataUrl = '';
+  walletQrPromise = QRCode.toDataURL(uri, { errorCorrectionLevel: 'M', margin: 1, width: 260 })
+    .then((data) => {
+      if (walletQrUri === uri) walletQrDataUrl = data;
+      return data;
+    })
+    .catch(() => '');
+  const result = await walletQrPromise;
+  if (walletQrUri === uri) walletQrPromise = null;
+  return walletQrUri === uri ? result : '';
+}
 
 async function renderWalletModal() {
   const m = $('#modal');
   if (!m.classList.contains('show')) return;
   if (wallet.state === 'connected') { m.classList.remove('show'); return; }
   const renderId = ++walletModalRender;
-  const qr = wallet.qrUri ? await QRCode.toDataURL(wallet.qrUri, { errorCorrectionLevel: 'M', margin: 1, width: 260 }) : '';
+  const qr = wallet.qrUri ? await getWalletQr(wallet.qrUri) : '';
   if (renderId !== walletModalRender || !m.classList.contains('show')) return;
   const status = wallet.state === 'reconnecting'
     ? 'Connection interrupted. WizardConnect is trying to restore your session…'
-    : wallet.state === 'disconnecting'
+    : wallet.state === 'connecting' && !wallet.qrUri
+      ? 'Trying to restore your saved Selene session…'
+      : wallet.state === 'disconnecting'
       ? 'Disconnecting wallet…'
       : wallet.state === 'disconnected'
         ? 'Wallet disconnected. Connect again when you are ready.'
         : 'Scan with a WizardConnect-enabled Bitcoin Cash wallet. Your keys never leave your phone.';
-  m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">${status}</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : (wallet.state === 'connecting' ? '<p>Starting secure relay…</p>' : '')}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}<button class="ghost" id="closeModal">Close</button></div>`;
-  $('#closeModal', m).onclick = () => { m.classList.remove('show'); if (wallet.state !== 'connected') wallet.disconnect(); };
+  m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">${status}</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : (wallet.state === 'connecting' ? '<p>Starting secure relay…</p>' : '')}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}${wallet.state === 'connecting' && wallet.error ? '<button class="btn" id="retryPairing">Start a fresh pairing</button>' : ''}<button class="ghost" id="closeModal">Close</button></div>`;
+  // Closing the sheet must not kill a live pairing while the user switches to Selene.
+  $('#closeModal', m).onclick = () => { m.classList.remove('show'); };
+  const retry = $('#retryPairing', m);
+  if (retry) retry.onclick = () => wallet.startFreshPairing();
   const copy = $('#copyWiz', m);
   if (copy && wallet.uri) copy.onclick = () => navigator.clipboard.writeText(wallet.uri!);
 }
@@ -114,7 +138,17 @@ function openWalletDetails() {
   };
 }
 
-wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) void renderWalletModal(); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') || location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create')) route(); });
+let lastWalletState = wallet.state;
+wallet.onChange(() => {
+  renderHeader();
+  if ($('#modal').classList.contains('show')) void renderWalletModal();
+  const previousState = lastWalletState;
+  lastWalletState = wallet.state;
+  const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
+    (wallet.state === 'idle' && previousState === 'disconnecting');
+  if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
+      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create'))) route();
+});
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
   return `<ol class="track">${names.map((n, i) => { const cls = completed || (round !== null && i < round) ? 'done' : round === i ? 'now' : ''; return `<li class="${cls}"><span class="dot">${cls === 'done' ? '✓' : i + 1}</span><span class="nm">${esc(n)}</span></li>`; }).join('')}</ol>`;
