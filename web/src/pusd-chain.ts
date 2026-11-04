@@ -38,7 +38,7 @@ export async function planPusdGenesis(
   b.addOutput({to:contract.tokenAddress,amount:PUSD_DUST,token:{category:genesis.txid,amount:0n,nft:{capability:'mutable',commitment:encodeRound(0)} }});
   b.addOutput({to:contract.address,amount:reserveSats});
   if(change>=546n) b.addOutput({to:walletAddress,amount:change});
-  const wc=b.generateWcTransactionObject({broadcast:true,userPrompt:`Create PUSD Ajo circle "${base.name}" and fund its BCH fee reserve`});
+  const wc=b.generateWcTransactionObject({broadcast:false,userPrompt:`Create PUSD Ajo circle "${base.name}" and fund its BCH fee reserve`});
   return {params,contract,wc,walletInputs:inputs.map((_,i)=>i),reserveSats};
 }
 
@@ -84,6 +84,6 @@ export async function planPusdContribution(
   b.addOutput({to:contract.address,amount:reserveSats});
   if(change>=546n) b.addOutput({to:walletAddress,amount:change});
   const walletInputs=Array.from({length:pickedTokens.length+bchInputs.length},(_,i)=>i);
-  const wc=b.generateWcTransactionObject({broadcast:true,userPrompt:`Contribute ${params.contribution} PUSD to "${params.name}" and replenish BCH fee reserve`});
+  const wc=b.generateWcTransactionObject({broadcast:false,userPrompt:`Contribute ${params.contribution} PUSD to "${params.name}" and replenish BCH fee reserve`});
   return {wc,walletInputs,contract,tokenAmount:params.contribution,reserveSats};
 }
