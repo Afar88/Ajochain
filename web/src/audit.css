@@ -128,3 +128,29 @@ button:disabled { filter: saturate(.7); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+
+/* Connected wallet details: viewing the account must never disconnect it. */
+.wallet-details .wallet-address-label {
+  margin: 18px 0 7px;
+  color: var(--muted, #7d6b5e);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+.wallet-details .addr {
+  text-align: left;
+  user-select: text;
+}
+.wallet-menu-actions {
+  display: flex;
+  gap: 9px;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.wallet-menu-actions > button { flex: 1; }
+.danger {
+  background: #fff;
+  color: var(--red, #b3261e);
+  box-shadow: inset 0 0 0 1.5px var(--red, #b3261e);
+}
