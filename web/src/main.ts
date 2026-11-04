@@ -28,7 +28,7 @@ function renderHeader() {
       <button class="net ${network}" id="netBtn" title="Switch network">${network === 'chipnet' ? 'Chipnet · Test' : 'Mainnet'}</button>
       ${w.state === 'connected'
         ? `<button class="wallet on" id="walletBtn" title="Disconnect">${esc(w.walletName || 'Wallet')} · ${addr ? short(addr) : ''}</button>`
-        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : 'Connect wallet'}</button>`}
+        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : w.state === 'disconnecting' ? 'Disconnecting…' : 'Connect wallet'}</button>`}
     </div>`;
   $('#netBtn').onclick = () => {
     const next: Net = network === 'chipnet' ? 'mainnet' : 'chipnet';
@@ -38,17 +38,33 @@ function renderHeader() {
   $('#walletBtn').onclick = () => (w.state === 'connected' ? openWalletDetails() : openWalletModal());
 }
 
-async function openWalletModal() {
-  if (wallet.state !== 'connecting') wallet.connect();
-  const m = $('#modal'); m.classList.add('show');
-  const draw = async () => {
-    if (wallet.state === 'connected') { m.classList.remove('show'); return; }
-    const qr = wallet.qrUri ? await QRCode.toDataURL(wallet.qrUri, { errorCorrectionLevel: 'M', margin: 1, width: 260 }) : '';
-    m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">Scan with a WizardConnect-enabled Bitcoin Cash wallet. Your keys never leave your phone.</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : '<p>Starting secure relay…</p>'}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}<button class="ghost" id="closeModal">Close</button></div>`;
-    $('#closeModal', m).onclick = () => { m.classList.remove('show'); if (wallet.state !== 'connected') wallet.disconnect(); };
-    const c = $('#copyWiz', m); if (c) c.onclick = () => navigator.clipboard.writeText(wallet.uri!);
-  };
-  draw();
+let walletModalRender = 0;
+
+async function renderWalletModal() {
+  const m = $('#modal');
+  if (!m.classList.contains('show')) return;
+  if (wallet.state === 'connected') { m.classList.remove('show'); return; }
+  const renderId = ++walletModalRender;
+  const qr = wallet.qrUri ? await QRCode.toDataURL(wallet.qrUri, { errorCorrectionLevel: 'M', margin: 1, width: 260 }) : '';
+  if (renderId !== walletModalRender || !m.classList.contains('show')) return;
+  const status = wallet.state === 'reconnecting'
+    ? 'Connection interrupted. WizardConnect is trying to restore your session…'
+    : wallet.state === 'disconnecting'
+      ? 'Disconnecting wallet…'
+      : wallet.state === 'disconnected'
+        ? 'Wallet disconnected. Connect again when you are ready.'
+        : 'Scan with a WizardConnect-enabled Bitcoin Cash wallet. Your keys never leave your phone.';
+  m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">${status}</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : (wallet.state === 'connecting' ? '<p>Starting secure relay…</p>' : '')}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}<button class="ghost" id="closeModal">Close</button></div>`;
+  $('#closeModal', m).onclick = () => { m.classList.remove('show'); if (wallet.state !== 'connected') wallet.disconnect(); };
+  const copy = $('#copyWiz', m);
+  if (copy && wallet.uri) copy.onclick = () => navigator.clipboard.writeText(wallet.uri!);
+}
+
+function openWalletModal() {
+  if (wallet.state === 'idle' || wallet.state === 'disconnected') wallet.connect();
+  const m = $('#modal');
+  m.classList.add('show');
+  void renderWalletModal();
 }
 function openWalletDetails() {
   const m = $('#modal');
@@ -98,7 +114,7 @@ function openWalletDetails() {
   };
 }
 
-wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) openWalletModal(); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') || location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create')) route(); });
+wallet.onChange(() => { renderHeader(); if ($('#modal').classList.contains('show')) void renderWalletModal(); if (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') || location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create')) route(); });
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
   return `<ol class="track">${names.map((n, i) => { const cls = completed || (round !== null && i < round) ? 'done' : round === i ? 'now' : ''; return `<li class="${cls}"><span class="dot">${cls === 'done' ? '✓' : i + 1}</span><span class="nm">${esc(n)}</span></li>`; }).join('')}</ol>`;
