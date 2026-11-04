@@ -17,6 +17,8 @@ class WizardWallet {
   uri: string | null = null;
   qrUri: string | null = null;
   walletName: string | null = null;
+  /** Receive-address index selected by matching Selene's displayed address. */
+  receiveIndex = 0;
   error: string | null = null;
   private mgr: DappConnectionManager | null = null;
   private relay: DappRelayResult | null = null;
@@ -82,11 +84,27 @@ class WizardWallet {
     }
   }
 
-  /** Receive address #0 of the connected wallet (MVP uses only this address). */
+  /** WizardConnect receive address at the currently selected BIP32 address index. */
   address(network: Net): string | null {
-    const pk = this.mgr?.getPubkey(0, 0n);
+    const pk = this.mgr?.getPubkey(0, BigInt(this.receiveIndex));
     if (!pk) return null;
     return pkhToAddress(hash160(pk), network);
+  }
+
+  /** Match a Selene receive address against the xpub supplied by WizardConnect. */
+  matchReceiveAddress(address: string, network: Net, maxIndex = 50): number | null {
+    const target = address.trim().toLowerCase();
+    if (!target) return null;
+    for (let i = 0; i <= maxIndex; i++) {
+      const pk = this.mgr?.getPubkey(0, BigInt(i));
+      if (!pk) return null;
+      if (pkhToAddress(hash160(pk), network).toLowerCase() === target) {
+        this.receiveIndex = i;
+        this.emit();
+        return i;
+      }
+    }
+    return null;
   }
 
   /**
@@ -98,7 +116,7 @@ class WizardWallet {
     if (!this.mgr || this.state !== 'connected') throw new Error('Connect a wallet first');
     const res = await this.mgr.signTransaction({
       transaction: { ...wcObject, broadcast: true, userPrompt: prompt },
-      inputPaths: walletInputs.map((i) => [i, 'receive', 0] as [number, string, number]),
+      inputPaths: walletInputs.map((i) => [i, 'receive', this.receiveIndex] as [number, string, number]),
     });
     if (res.error) throw new Error(res.error);
     return res.signedTransaction;
