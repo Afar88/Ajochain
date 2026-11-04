@@ -68,9 +68,15 @@ class WizardWallet {
   private listeners: Listener[] = [];
   // Invalidates callbacks from managers that have been replaced or disconnected.
   private generation = 0;
+  private connectionWatchdog: ReturnType<typeof setTimeout> | null = null;
 
   onChange(fn: Listener) { this.listeners.push(fn); }
   private emit() { this.listeners.forEach((f) => f()); }
+
+  private clearConnectionWatchdog() {
+    if (this.connectionWatchdog) clearTimeout(this.connectionWatchdog);
+    this.connectionWatchdog = null;
+  }
 
   private isCurrent(mgr: DappConnectionManager, generation: number) {
     return this.mgr === mgr && this.generation === generation;
@@ -88,6 +94,7 @@ class WizardWallet {
     // Do not create overlapping relays/managers. A reconnecting manager owns its retry loop.
     if (this.state === 'connecting' || this.state === 'reconnecting' ||
         this.state === 'connected' || this.state === 'disconnecting') return;
+    this.clearConnectionWatchdog();
     this.error = null;
     this.receiveIndex = 0;
     this.state = 'connecting';
@@ -98,6 +105,7 @@ class WizardWallet {
 
     mgr.on('walletready', () => {
       if (!this.isCurrent(mgr, generation)) return;
+      this.clearConnectionWatchdog();
       this.walletName = mgr.walletName;
       this.error = null;
       this.state = 'connected';
@@ -105,11 +113,13 @@ class WizardWallet {
     });
     mgr.on('reconnecting', () => {
       if (!this.isCurrent(mgr, generation)) return;
+      this.error = null;
       this.state = 'reconnecting';
       this.emit();
     });
     mgr.on('disconnect', () => {
       if (!this.isCurrent(mgr, generation)) return;
+      this.clearConnectionWatchdog();
       const relay = this.relay;
       this.generation++;
       this.mgr = null;
@@ -134,8 +144,18 @@ class WizardWallet {
       this.relay = relay;
       if (!existing) { this.uri = relay.uri; this.qrUri = relay.qrUri; }
       mgr.attachRelay(relay);
+      // Give slow mobile wallet handoffs time, but surface a recovery action
+      // instead of leaving the UI in an endless "Connecting…" state.
+      this.connectionWatchdog = setTimeout(() => {
+        if (!this.isCurrent(mgr, generation) || this.state !== 'connecting') return;
+        this.error = existing
+          ? 'Your saved Selene session has not responded. Start a fresh pairing to reconnect.'
+          : 'Still waiting for Selene. Keep AjoChain open, or start a fresh pairing.';
+        this.emit();
+      }, 20000);
     } catch (e) {
       if (this.isCurrent(mgr, generation)) {
+        this.clearConnectionWatchdog();
         this.error = e instanceof Error ? e.message : 'Failed to start WizardConnect relay';
         this.mgr = null;
         this.relay = null;
@@ -144,6 +164,26 @@ class WizardWallet {
       }
     }
     this.emit();
+  }
+
+  /** Discard a stalled/stale pairing and create a fresh WizardConnect relay. */
+  startFreshPairing() {
+    if (this.state === 'connected' || this.state === 'disconnecting') return;
+    const mgr = this.mgr;
+    const relay = this.relay;
+    this.generation++;
+    this.mgr = null;
+    this.relay = null;
+    this.clearConnectionWatchdog();
+    this.cleanup(mgr, relay, true);
+    this.uri = null;
+    this.qrUri = null;
+    this.walletName = null;
+    this.receiveIndex = 0;
+    this.error = null;
+    this.state = 'idle';
+    this.emit();
+    this.connect();
   }
 
   /** Resume a stored WizardConnect session after page reload, if one exists. */
@@ -166,6 +206,7 @@ class WizardWallet {
     if (this.state === 'disconnecting') return;
     const mgr = this.mgr;
     const relay = this.relay;
+    this.clearConnectionWatchdog();
     // Invalidate all manager/relay callbacks before awaiting the remote disconnect.
     this.generation++;
     this.mgr = null;
