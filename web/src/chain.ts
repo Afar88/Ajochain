@@ -94,7 +94,7 @@ export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, wal
     token: { category: genesisUtxo.txid, amount: 0n, nft: { capability: 'mutable', commitment: encodeRound(0) } },
   });
   if (change >= 546n) b.addOutput({ to: walletAddress, amount: change });
-  const wc = b.generateWcTransactionObject({ broadcast: true, userPrompt: `Start Ajo circle "${base.name}"` });
+  const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Start Ajo circle "${base.name}"` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i) };
 }
 
@@ -116,6 +116,6 @@ export async function planContribution(params: CircleParams, contract: Contract,
   for (const u of inputs) b.addInput(u, placeholderP2PKHUnlocker(walletAddress));
   b.addOutput({ to: contract.address, amount: params.contribution });
   if (change >= 546n) b.addOutput({ to: walletAddress, amount: change });
-  const wc = b.generateWcTransactionObject({ broadcast: true, userPrompt: `Ajo contribution to "${params.name}"` });
+  const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Ajo contribution to "${params.name}"` });
   return { wc, walletInputs: inputs.map((_, i) => i) };
 }
