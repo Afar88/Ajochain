@@ -5,6 +5,7 @@ import { initiateDappRelay, type DappRelayResult } from '@wizardconnect/core';
 import { DappConnectionManager, loadSession } from '@wizardconnect/dapp';
 import { hash160, stringify } from '@bitauth/libauth';
 import { pkhToAddress, type Net } from '../../src/lib/ajo';
+import { getProvider } from './chain';
 
 export type WalletState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnecting' | 'disconnected';
 
@@ -168,7 +169,7 @@ class WizardWallet {
   }
 
   /** Ask the connected wallet to sign and broadcast a CashScript-built transaction. */
-  async signAndBroadcast(wcObject: any, walletInputs: number[], prompt: string) {
+  async signAndBroadcast(wcObject: any, walletInputs: number[], prompt: string, network: Net) {
     if (!this.mgr || this.state !== 'connected') throw new Error('Connect a wallet first');
     const mgr = this.mgr;
     const generation = this.generation;
@@ -183,7 +184,7 @@ class WizardWallet {
     // produces an invalid signing request and can prevent wallet approval.
     const encodedRequest = JSON.parse(stringify({
       ...wcObject,
-      broadcast: true,
+      broadcast: false,
       userPrompt: prompt,
     }));
 
@@ -195,7 +196,13 @@ class WizardWallet {
       throw new Error('Wallet connection changed before signing completed. Please reconnect and try again.');
     }
     if (res.error) throw new Error(res.error);
-    return res.signedTransaction;
+    const signedTransaction = res.signedTransaction;
+    if (typeof signedTransaction !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(signedTransaction)) {
+      throw new Error('Selene did not return a valid signed transaction. The transaction was not broadcast.');
+    }
+    // WizardConnect returns a signed transaction; broadcasting is the dapp's responsibility.
+    const provider = await getProvider(network);
+    return provider.sendRawTransaction(signedTransaction);
   }
 }
 
