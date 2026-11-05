@@ -123,6 +123,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 The next product phase is documented in:
 - [Member experience architecture](docs/MEMBER_EXPERIENCE_V2.md) — wallet-verified invitations, shared discovery, organiser controls, event indexing, history, notifications, and safety boundaries.
 - [Member credit and rollover contract gate](docs/MEMBER_CREDIT_ROLLOVER_V2.md) — on-chain attribution and per-member rollover requirements for new circles only.
+- [v2 contract feasibility audit](docs/V2_CONTRACT_FEASIBILITY_AUDIT.md) — source-level findings for the current BCH/PUSD contracts and wallet-signing boundary.
 
 These are design specifications, not shipped features. The current app remains a static, browser-local MVP; do not assume cross-device membership discovery or per-member contribution accounting until the required backend and contract work is implemented and tested.
 
