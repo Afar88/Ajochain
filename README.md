@@ -151,3 +151,11 @@ These are design specifications, not shipped features. The current app remains a
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+
+### Backend foundation
+
+- [Backend setup and trust boundary](docs/BACKEND_SETUP.md)
+- [Metadata-only PostgreSQL migration](db/migrations/0001_backend_foundation.sql)
+
+Neon is connected to the Vercel project. The migration is not yet applied, and the application does not yet use the database at runtime. Financial state remains chain-authoritative.
