@@ -64,15 +64,15 @@ CREATE TABLE IF NOT EXISTS chain_events (
   confirmation_state TEXT NOT NULL DEFAULT 'mempool'
     CHECK (confirmation_state IN ('mempool', 'confirmed', 'reorged')),
   observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (network, txid, output_index, event_type)
 );
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
-  member_id UUID PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   channel TEXT NOT NULL CHECK (channel IN ('email', 'web_push')),
   event_categories TEXT[] NOT NULL DEFAULT '{}',
   opted_in BOOLEAN NOT NULL DEFAULT false,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (member_id, channel)
 );
 
 CREATE TABLE IF NOT EXISTS notification_deliveries (
@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   delivered_at TIMESTAMPTZ
 );
+
+-- NULL output indexes must compare equal for idempotent event ingestion.
+CREATE UNIQUE INDEX IF NOT EXISTS chain_events_identity
+  ON chain_events (network, txid, COALESCE(output_index, -1), event_type);
 
 CREATE INDEX IF NOT EXISTS members_wallet_lookup
   ON members (wallet_address) WHERE wallet_address IS NOT NULL;
