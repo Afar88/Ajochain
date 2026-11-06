@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS chain_events (
   block_hash TEXT,
   confirmation_state TEXT NOT NULL DEFAULT 'mempool'
     CHECK (confirmation_state IN ('mempool', 'confirmed', 'reorged')),
-  observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  observed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
