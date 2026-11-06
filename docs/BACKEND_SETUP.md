@@ -1,6 +1,6 @@
 # AjoChain backend foundation
 
-Status: schema and setup plan only. No live database is connected yet.
+Status: Neon is connected to the Vercel AjoChain project. The metadata-only migration is in `db/migrations/0001_backend_foundation.sql`. Runtime API integration and migration execution remain pending.
 
 ## Trust boundary
 
@@ -13,11 +13,12 @@ Status: schema and setup plan only. No live database is connected yet.
 
 ## Neon setup gate
 
-1. Connect the Neon resource to the AjoChain Vercel project.
-2. Confirm the server-side database URL is available to Vercel Functions. Never expose it as a VITE_ variable.
-3. Run the migration against a fresh Chipnet development database.
+1. Neon is connected to the AjoChain Vercel project; credentials are managed by Vercel.
+2. Use only the server-side `DATABASE_URL` (never a `VITE_` variable).
+3. Apply `db/migrations/0001_backend_foundation.sql` to a fresh Chipnet development database.
 4. Verify constraints and indexes with integration tests.
 5. Add server-side API routes using a serverless-compatible PostgreSQL client.
-6. Keep production migration and mainnet activation behind explicit review.
+6. Review Neon Auth settings before any authentication implementation; wallet identity must be proven by a wallet signature.
+7. Keep production migration and mainnet activation behind explicit review.
 
 This foundation does not implement wallet authentication, invitation acceptance, chain indexing, notifications, or member-level balances. Those require separate verified code and tests.
