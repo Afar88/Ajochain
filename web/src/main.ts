@@ -5,7 +5,7 @@ import {
   DEFAULT_MAX_FEE, MAX_MEMBERS, MIN_MEMBERS, type CircleParams, type Net,
 } from '../../src/lib/ajo';
 import { wallet } from './wallet';
-import { getProvider, explorerTx, planGenesis, planContribution } from './chain';
+import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
 import { MockNetworkProvider } from 'cashscript';
 import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
@@ -101,6 +101,10 @@ function openWalletDetails() {
     <code class="addr" id="walletAddress">${esc(addr || 'Address unavailable')}</code>
     <button class="ghost sm" id="copyWalletAddress" ${addr ? '' : 'disabled'}>Copy address</button>
     <div class="wallet-address-check">
+      <button class="ghost sm" id="checkWalletFunding" ${addr ? '' : 'disabled'}>Check BCH funding</button>
+      <p class="muted small" id="walletFundingResult">Checks BCH coins at the connected address on the selected network. It does not move funds.</p>
+    </div>
+    <div class="wallet-address-check">
       <label for="seleneReceiveAddress">Match the receive address shown in Selene</label>
       <input id="seleneReceiveAddress" class="addr-input" placeholder="Paste Selene BCH receive address" autocomplete="off" />
       <button class="ghost sm" id="matchSeleneAddress">Find matching WizardConnect address</button>
@@ -116,6 +120,21 @@ function openWalletDetails() {
   $('#closeWalletDetails', m).onclick = () => m.classList.remove('show');
   const copy = $('#copyWalletAddress', m);
   if (copy && addr) copy.onclick = () => navigator.clipboard.writeText(addr);
+  $('#checkWalletFunding', m).onclick = async () => {
+    const result = $('#walletFundingResult', m);
+    result.textContent = 'Checking the selected network…';
+    try {
+      const funding = await inspectWalletFunding(network, addr!);
+      const coins = funding.utxos.slice(0, 8).map((u) =>
+        `vout ${u.vout}: ${u.satoshis.toString()} sats · ${u.txid.slice(0, 12)}…`
+      );
+      result.textContent = funding.count === 0
+        ? 'No ordinary BCH coins found at this address on this network. No funds were moved.'
+        : `Found ${funding.count} BCH coin(s), total ${funding.total.toString()} sats. CashTokens-eligible genesis coins: ${funding.eligible.length}. ${coins.join(' | ')}${funding.utxos.length > 8 ? ' | More coins not shown' : ''}`;
+    } catch (e: any) {
+      result.textContent = `Could not inspect BCH funding: ${String(e.message || e)}`;
+    }
+  };
   $('#matchSeleneAddress', m).onclick = () => {
     const field = $<HTMLInputElement>('#seleneReceiveAddress', m);
     const result = $('#addressMatchResult', m);
