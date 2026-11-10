@@ -294,6 +294,39 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     await expect(deposit(provider, contract, 0, 0, CONTRIBUTION)).resolves.toBeUndefined();
   });
 
+
+  it('rejects a payout that appends an unexpected output', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    await deposit(provider, contract, 0);
+    await deposit(provider, contract, 1);
+
+    const all = await contract.getUtxos();
+    const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+    const receipts = [0, 1].map((i) => all.find((u) =>
+      u.token?.nft?.commitment?.startsWith('52' + i.toString(16).padStart(2, '0')),
+    ) as SpendableUtxo);
+    const tx = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.payout())
+      .addInputs(receipts, contract.unlock.payout())
+      .addOutput({
+        to: contract.tokenAddress,
+        amount: state.satoshis - 2n * CONTRIBUTION,
+        token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5301' } },
+      });
+    for (let i = 0; i < receipts.length; i++) {
+      tx.addOutput({
+        to: contract.tokenAddress,
+        amount: receipts[i].satoshis,
+        token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(i, 0n) } },
+      });
+    }
+    tx.addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 190_000n });
+    tx.addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 546n });
+    await expect(tx.send()).rejects.toThrow();
+  });
+
   it('rejects payout when a member receipt is missing', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
