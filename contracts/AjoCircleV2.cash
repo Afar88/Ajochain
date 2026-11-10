@@ -106,10 +106,10 @@ contract AjoCircleV2(
         require(statePrefix == 0x53);
         require(stateRound.length == 1);
         int round = int(stateRound);
-        require(round < memberCount);
+        require(round >= 0 && round < memberCount);
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
-        require(tx.outputs[0].nftCommitment == 0x53 + toPaddedBytes(round + 1, 1));
+        require(tx.outputs[0].nftCommitment == 0x53 + toPaddedBytes((round + 1) % memberCount, 1));
         require(tx.outputs[0].value == tx.inputs[0].value - pot);
         require(tx.outputs[0].value >= 1000);
 
