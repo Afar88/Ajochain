@@ -157,3 +157,26 @@ export async function planV2Payout(params: V2CircleParams) {
   builder.addOutput({ to: params.members[round], amount: payout });
   return { builder, round, recipient: params.members[round], payout, fee: params.maxFee };
 }
+
+
+/** Read and validate the complete v2 state before rendering balances or actions. */
+export async function readV2Circle(params: V2CircleParams) {
+  validate(params);
+  const provider = await getProvider(params.network);
+  const contract = contractFor(params, provider);
+  const utxos = await contract.getUtxos();
+  const state = findState(utxos, params.stateCategory);
+  const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
+  if (round < 0 || round >= params.members.length) throw new Error('Invalid v2 payout round.');
+  const receipts = params.members.map((_, index) => findReceipt(utxos, params.stateCategory, index));
+  const credits = receipts.map(receipt => v2CreditFromCommitment(receipt.token!.nft!.commitment));
+  return {
+    contract,
+    utxos,
+    round,
+    stateSatoshis: state.satoshis,
+    credits,
+    ready: credits.every(credit => credit >= params.contribution),
+    recipient: params.members[round],
+  };
+}
