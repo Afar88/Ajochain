@@ -45,7 +45,7 @@ function creditCommitment(index: number, amount: bigint) {
 
 function addGenesis(provider: MockNetworkProvider, contract: Contract) {
   provider.addUtxo(contract.address, randomUtxo({
-    satoshis: DUST,
+    satoshis: 200_000n,
     token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
   }));
   for (let i = 0; i < members.length; i++) {
