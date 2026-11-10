@@ -120,6 +120,15 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 - **Genesis needs a wallet coin at output #0** (CashTokens rule). If your wallet has none, send yourself a small amount first. Advanced users can mint the state NFT manually from any CashTokens wallet using the "Genesis txid" option.
 - Chain reads go to public Fulcrum servers over WebSocket. For chipnet the app probes `chipnet.imaginary.cash`, `chipnet.bch.ninja` and `cbch.loping.net` in parallel and uses the first that answers. If none are reachable the circle page shows an error with a Retry button. Override in the browser console with `localStorage.setItem('ajo-electrum-chipnet', 'host:port')`.
 
+## Member experience v2 design
+
+The next product phase is documented in:
+- [Member experience architecture](docs/MEMBER_EXPERIENCE_V2.md) — wallet-verified invitations, shared discovery, organiser controls, event indexing, history, notifications, and safety boundaries.
+- [Member credit and rollover contract gate](docs/MEMBER_CREDIT_ROLLOVER_V2.md) — on-chain attribution and per-member rollover requirements for new circles only.
+- [v2 contract feasibility audit](docs/V2_CONTRACT_FEASIBILITY_AUDIT.md) — source-level findings for the current BCH/PUSD contracts and wallet-signing boundary.
+
+These are design specifications, not shipped features. The current app remains a static, browser-local MVP; do not assume cross-device membership discovery or per-member contribution accounting until the required backend and contract work is implemented and tested.
+
 ## Roadmap
 
 - **Stablecoin circles (PUSD / CashTokens FTs)**: experimental Chipnet UI supports creation, contributions, live status, and permissionless payouts. Real Chipnet wallet testing, cancellation signing UX, end-to-end tests against the network, and independent audit remain outstanding.
