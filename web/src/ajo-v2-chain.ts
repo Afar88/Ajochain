@@ -63,6 +63,7 @@ function findReceipt(utxos: SpendableUtxo[], category: string, index: number) {
   const prefix = RECEIPT_PREFIX + index.toString(16).padStart(2, '0');
   const matches = utxos.filter(u => u.token?.category === category && u.token.nft?.capability === 'none' && u.token.nft.commitment.startsWith(prefix));
   if (matches.length !== 1) throw new Error(matches.length ? `Duplicate receipt for member ${index + 1}; stop and investigate.` : `Missing receipt for member ${index + 1}; refresh the circle.`);
+  if (matches[0].token!.amount !== 0n) throw new Error(`Member ${index + 1} receipt unexpectedly carries fungible tokens.`);
   v2CreditFromCommitment(matches[0].token!.nft!.commitment);
   return matches[0];
 }
