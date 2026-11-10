@@ -161,3 +161,8 @@ MIT, see [LICENSE](LICENSE).
 - [Metadata-only PostgreSQL migration](db/migrations/0001_backend_foundation.sql)
 
 Neon is connected to the Vercel project. The migration is not yet applied, and the application does not yet use the database at runtime. Financial state remains chain-authoritative.
+
+
+## Chipnet v2 member-credit prototype
+
+The experimental BCH v2 covenant and its trust boundaries are documented in [MEMBER_CREDIT_V2_PROTOTYPE.md](docs/MEMBER_CREDIT_V2_PROTOTYPE.md). This is not a production feature; existing v1 circles remain unchanged.
