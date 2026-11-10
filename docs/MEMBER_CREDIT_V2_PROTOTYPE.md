@@ -1,6 +1,6 @@
 # AjoChain v2 BCH member-credit prototype
 
-Status: experimental Chipnet-only contract prototype. The covenant and mock-provider tests are not a usable end-to-end v2 release. It is not audited, not integrated into the app, and not deployable. Existing v1 remains the only app flow.
+Status: experimental Chipnet-only contract prototype. The covenant, client transaction planners, and isolated `#/v2/` Chipnet UI are an experimental prototype, not a production release. It is not audited and has not been validated end-to-end with independent Selene wallets on Chipnet. Existing v1 circles remain unchanged.
 
 ## Why this design changed
 
@@ -41,11 +41,11 @@ The covenant checks every member's own receipt is at least one contribution, deb
 
 1. The contract must compile under the pinned CashScript compiler.
 2. Mock-provider tests currently cover correct/incorrect funding address, repeated deposits, member-specific rollover, two-cycle rotation, insufficient credit, swapped receipt order, and the payout fee cap. Still required: real genesis receipt creation, altered commitments, missing/duplicate receipts, extra outputs, wrong token capabilities/categories, and replay attempts.
-3. The client must build and inspect the fixed transaction layouts and select the correct member receipt UTXOs.
+3. The client planners and isolated v2 UI now build genesis, member deposits, and payouts. They still require transaction-layout inspection and end-to-end validation with independent Selene wallets on Chipnet.
 4. The genesis transaction must be verified output-by-output and must not mint unexpected NFTs of the system category.
 5. Cancellation must refund each member's remaining credit safely. It is intentionally not implemented in this prototype.
 6. PUSD needs a separate token-sidecar design and separate tests; this BCH contract does not support PUSD.
-7. The app must have a v2-only circle format/version marker so existing v1 circles can never be misread as v2. Chipnet tests with multiple independent Selene wallets and an independent security review are required before any mainnet consideration.
+7. V2 invite links and local dashboard entries use an explicit `version: 2` marker and a separate `#/v2/` route; they are not decoded as v1 circles. Chipnet tests with multiple independent Selene wallets and an independent security review are still required before any mainnet consideration.
 
 ## Explicit non-goals
 
