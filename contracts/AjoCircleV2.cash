@@ -66,6 +66,7 @@ contract AjoCircleV2(
         require(int(receiptMember) == memberIndex);
         require(receiptCredit.length == 8);
         int oldCredit = int(receiptCredit);
+        require(oldCredit >= 0 && oldCredit <= 9223372036854775807 - amount);
         require(tx.outputs[1].lockingBytecode == tx.inputs[1].lockingBytecode);
         require(tx.outputs[1].tokenCategory == stateCategory);
         require(tx.outputs[1].tokenAmount == 0);
