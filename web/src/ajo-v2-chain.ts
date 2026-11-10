@@ -67,6 +67,22 @@ function findReceipt(utxos: SpendableUtxo[], category: string, index: number) {
   v2CreditFromCommitment(matches[0].token!.nft!.commitment);
   return matches[0];
 }
+
+/** Reject unexpected category UTXOs at the covenant address instead of silently ignoring them. */
+function assertV2UtxoSet(utxos: SpendableUtxo[], category: string, memberCount: number) {
+  const categoryUtxos = utxos.filter(u => u.token?.category === category);
+  if (categoryUtxos.length !== memberCount + 1) {
+    throw new Error(`Invalid v2 circle token set: expected exactly ${memberCount + 1} state/receipt NFTs, found ${categoryUtxos.length}. Stop and investigate before spending.`);
+  }
+  const state = findState(utxos, category);
+  if (!state) throw new Error('V2 state NFT not found.');
+  const receipts = Array.from({ length: memberCount }, (_, index) => findReceipt(utxos, category, index));
+  const knownOutpoints = new Set([state, ...receipts].map(u => `${u.txid}:${u.vout}`));
+  if (categoryUtxos.some(u => !knownOutpoints.has(`${u.txid}:${u.vout}`))) {
+    throw new Error('Unexpected CashToken output found at the v2 circle address. Stop and investigate.');
+  }
+}
+
 function pickFunding(utxos: SpendableUtxo[], required: bigint) {
   const coin = [...utxos].filter(u => !u.token).sort((a,b) => a.satoshis > b.satoshis ? -1 : 1).find(u => u.satoshis >= required);
   if (!coin) throw new Error('No single BCH coin at this address can cover the amount and fee. Consolidate funds first.');
@@ -112,6 +128,7 @@ export async function planV2Deposit(params: V2CircleParams, memberIndex: number,
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const all = await contract.getUtxos();
+  assertV2UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
   if (!state) throw new Error('V2 state NFT not found.');
   const receipt = findReceipt(all, params.stateCategory, memberIndex);
@@ -166,6 +183,7 @@ export async function readV2Circle(params: V2CircleParams) {
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const utxos = await contract.getUtxos();
+  assertV2UtxoSet(utxos, params.stateCategory, params.members.length);
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
   if (round < 0 || round >= params.members.length) throw new Error('Invalid v2 payout round.');
