@@ -318,10 +318,11 @@ async function renderV2Circle(encoded: string) {
 }
 
 function renderMine() {
-  const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
+  const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]'); const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
   const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">${p.network}</span></li>`; } catch { return ''; } }).join('');
   const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">PUSD</span></li>`; } catch { return ''; } }).join('');
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/create">+ New</a></div>${bchItems || pusdItems ? `<ul class="members circle-list">${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>No circles yet</h3><p class="muted">Create your first savings circle and it will appear here.</p><a class="btn" href="#/create">Create a circle</a></div>'}</section>`;
+  const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · v2 receipts</small></span><span class="tag gold">V2 test</span></li>`; } catch { return ''; } }).join('');
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/create">+ New</a></div>${bchItems || pusdItems || v2Items ? `<ul class="members circle-list">${bchItems}${pusdItems}${v2Items}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>No circles yet</h3><p class="muted">Create your first savings circle and it will appear here.</p><a class="btn" href="#/create">Create a circle</a></div>'}</section>`;
 }
 
 function route() {
