@@ -182,3 +182,7 @@ The experimental BCH v2 covenant and its trust boundaries are documented in [MEM
 ## PUSD member-credit and cancellation security
 
 The PUSD v2 member-credit/refund design and current source-level security findings are documented in [PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md](docs/PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md). The legacy pooled-PUSD cancellation entry point is disabled because it cannot safely prove member-level refunds. The v2 PUSD implementation remains a Chipnet-only development task and is not enabled for real funds.
+
+## Changelog
+
+- **2026-11-10:** Our Ajo (original Classic circle) verified on Chipnet: covenant `bchtest:pvhnq9…vev256` holds only its state NFT at round 0, with no contributions or payouts, so there are no funds to migrate. Added a read-only on-chain verification panel to Classic circle pages, plus recovery tests. Report: `docs/OUR_AJO_RECOVERY.md`.
