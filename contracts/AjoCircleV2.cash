@@ -55,6 +55,8 @@ contract AjoCircleV2(
         bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
         require(statePrefix == 0x53);
         require(stateRound.length == 1);
+        // Reject malformed/out-of-range round state on deposits as well as payouts.
+        require(int(stateRound) >= 0 && int(stateRound) < memberCount);
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
         require(tx.outputs[0].tokenAmount == 0);
