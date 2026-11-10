@@ -185,6 +185,31 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     await expect(deposit(provider, contract, 1, 0)).rejects.toThrow();
   });
 
+  it('rejects payout when member receipt inputs are swapped', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    await deposit(provider, contract, 0);
+    await deposit(provider, contract, 1);
+
+    const all = await contract.getUtxos();
+    const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+    const receipt0 = all.find((u) => u.token?.nft?.commitment?.startsWith('5200')) as SpendableUtxo;
+    const receipt1 = all.find((u) => u.token?.nft?.commitment?.startsWith('5201')) as SpendableUtxo;
+    const tx = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.payout())
+      .addInputs([receipt1, receipt0], contract.unlock.payout())
+      .addOutput({
+        to: contract.tokenAddress,
+        amount: state.satoshis - 2n * CONTRIBUTION,
+        token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5301' } },
+      })
+      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(0, 0n) } } })
+      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(1, 0n) } } })
+      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 190_000n });
+    await expect(tx.send()).rejects.toThrow();
+  });
+
   it('blocks payout while any member receipt is below one contribution', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
