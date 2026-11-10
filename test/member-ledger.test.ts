@@ -40,8 +40,11 @@ describe('member contribution ledger', () => {
     expect(replayMemberLedger(events).size).toBe(1);
     expect(summary(events).paidIn).toBe(150n);
   });
-  it('fails closed on conflicting duplicate observations', () => {
+  it('fails closed when duplicate observations disagree on amount', () => {
     expect(() => replayMemberLedger([receipt(), receipt({ amount: 200n })])).toThrow(/Conflicting receipt/);
+  });
+  it('fails closed when duplicate observations disagree on funding evidence', () => {
+    expect(() => replayMemberLedger([receipt(), receipt({ fundingAddresses: [memberB] })])).toThrow(/Conflicting receipt/);
   });
   it('credits excess from the same member toward the next round', () => {
     const result = summary([receipt({ amount: 250n })], 1);
@@ -72,6 +75,14 @@ describe('member contribution ledger', () => {
     }];
     expect(replayMemberLedger(events).size).toBe(0);
     expect(summary(events).paidIn).toBe(0n);
+  });
+  it('accepts a newly verified confirmation after a reorg reversal', () => {
+    const events: MemberLedgerEvent[] = [receipt(), {
+      type: 'contribution_reversed', network: 'chipnet', circleId: 'circle-1',
+      txid, outputIndex: 1, reason: 'reorg', reversedAt: 1_800_000_100,
+    }, receipt({ blockHash: 'ef'.repeat(32), confirmedAt: 1_800_000_200 })];
+    expect(replayMemberLedger(events).size).toBe(1);
+    expect(summary(events).paidIn).toBe(150n);
   });
   it('rejects reversing an unknown receipt', () => {
     expect(() => replayMemberLedger([{
