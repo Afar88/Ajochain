@@ -3,7 +3,7 @@ import { v2ReceiptCommitment, v2CreditFromCommitment } from '../web/src/ajo-v2-c
 
 describe('AjoChain v2 client receipt encoding', () => {
   it('round-trips zero, normal and large satoshi credits', () => {
-    for (const amount of [0n, 1n, 100_000n, 0xffffffffffffffffn]) {
+    for (const amount of [0n, 1n, 100_000n, 0x7fffffffffffffffn]) {
       const encoded = v2ReceiptCommitment(3, amount);
       expect(v2CreditFromCommitment(encoded)).toBe(amount);
       expect(encoded.slice(0, 4)).toBe('5203');
@@ -19,6 +19,6 @@ describe('AjoChain v2 client receipt encoding', () => {
     expect(() => v2CreditFromCommitment('5300')).toThrow();
     expect(() => v2ReceiptCommitment(5, 1n)).toThrow();
     expect(() => v2ReceiptCommitment(0, -1n)).toThrow();
-    expect(() => v2ReceiptCommitment(0, 0x10000000000000000n)).toThrow();
+    expect(() => v2ReceiptCommitment(0, 0x8000000000000000n)).toThrow();
   });
 });
