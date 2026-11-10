@@ -291,9 +291,13 @@ function renderV2Create() {
       await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create v2 Ajo circle "${draft.name}"`, network);
       err.textContent = 'Verifying the on-chain state NFT and every member receipt…';
       const created = await readV2Circle(g.params);
+      const genesisTokenUtxos = created.utxos.filter(u => u.token?.category === g.params.stateCategory);
       if (created.credits.length !== members.length || created.credits.some(credit => credit !== 0n) ||
-          created.stateSatoshis < 1000n) {
-        throw new Error('Genesis transaction was broadcast, but the on-chain state did not match the expected clean v2 layout. Do not invite members; preserve the transaction ID and investigate.');
+          genesisTokenUtxos.length !== members.length + 1 ||
+          created.stateSatoshis < 1000n ||
+          genesisTokenUtxos.some(u => u.satoshis < 1000n) ||
+          genesisTokenUtxos.some(u => u.token?.amount !== 0n)) {
+        throw new Error('Genesis transaction was broadcast, but the on-chain state/receipt set did not match the expected v2 layout and dust reserves. Do not invite members; preserve the transaction ID and investigate.');
       }
       saveV2Circle(g.params);
       location.hash = `#/v2/${encodeV2Link(g.params)}`;
