@@ -298,7 +298,7 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
     provider.addUtxo(contract.address, randomUtxo({
-      satoshis: 200_000n,
+      satoshis: 500_000n,
       token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
     }));
     provider.addUtxo(contract.address, randomUtxo({
