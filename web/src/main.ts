@@ -344,11 +344,39 @@ async function renderV2Circle(encoded: string) {
 }
 
 function renderMine() {
-  const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]'); const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
-  const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">${p.network}</span></li>`; } catch { return ''; } }).join('');
-  const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">PUSD</span></li>`; } catch { return ''; } }).join('');
-  const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · v2 receipts</small></span><span class="tag gold">V2 test</span></li>`; } catch { return ''; } }).join('');
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/create">+ New</a></div>${(bchItems || pusdItems || v2Items).trim() ? `<ul class="members circle-list">${bchItems}${pusdItems}${v2Items}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>No circles yet</h3><p class="muted">Create your first savings circle and it will appear here.</p><a class="btn" href="#/create">Create a circle</a></div>'}</section>`;
+  const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
+  const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
+  const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
+  const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH · Classic</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">V1</span></li>`; } catch { return ''; } }).join('');
+  const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Legacy PUSD</span></li>`; } catch { return ''; } }).join('');
+  const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag green">V2</span></li>`; } catch { return ''; } }).join('');
+  const hasCircles = Boolean((bchItems + pusdItems + v2Items).trim());
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a></div>${hasCircles ? `<ul class="members circle-list">${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+  $('#restoreCircleBtn').onclick = () => {
+    const field = $<HTMLInputElement>('#restoreCircleLink');
+    const error = $('#restoreCircleError');
+    error.textContent = '';
+    try {
+      const raw = field.value.trim();
+      if (!raw) throw new Error('Paste the original circle invite link first.');
+      let hash = raw;
+      try { hash = new URL(raw).hash || raw; } catch { /* accept a hash fragment */ }
+      const match = hash.match(/#\/(c|p|v2)\/([A-Za-z0-9_-]+)(?:\?manual=1)?$/);
+      if (!match) throw new Error('That link does not contain a recognised AjoChain circle route.');
+      const [, kind, encoded] = match;
+      if (kind === 'c') {
+        const p = decodeCircle(encoded); saveCircle(p); location.hash = `#/c/${encoded}`;
+      } else if (kind === 'p') {
+        const p = decodePusdLink(encoded);
+        const list: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
+        if (!list.includes(encoded)) list.unshift(encoded);
+        localStorage.setItem('ajo-pusd-circles', JSON.stringify(list.slice(0, 20)));
+        location.hash = `#/p/${encoded}`;
+      } else {
+        const p = decodeV2Link(encoded); saveV2Circle(p); location.hash = `#/v2/${encoded}`;
+      }
+    } catch (e: any) { error.textContent = String(e.message || e); }
+  };
 }
 
 function route() {
