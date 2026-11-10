@@ -20,5 +20,6 @@ describe('AjoChain v2 client receipt encoding', () => {
     expect(() => v2ReceiptCommitment(5, 1n)).toThrow();
     expect(() => v2ReceiptCommitment(0, -1n)).toThrow();
     expect(() => v2ReceiptCommitment(0, 0x8000000000000000n)).toThrow();
+    expect(() => v2CreditFromCommitment('52000000000000000080')).toThrow();
   });
 });
