@@ -166,3 +166,8 @@ Neon is connected to the Vercel project. The migration is not yet applied, and t
 ## Chipnet v2 member-credit prototype
 
 The experimental BCH v2 covenant and its trust boundaries are documented in [MEMBER_CREDIT_V2_PROTOTYPE.md](docs/MEMBER_CREDIT_V2_PROTOTYPE.md). This is not a production feature; existing v1 circles remain unchanged.
+
+
+## PUSD member-credit and cancellation security
+
+The PUSD v2 member-credit/refund design and current source-level security findings are documented in [PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md](docs/PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md). The legacy pooled-PUSD cancellation entry point is disabled because it cannot safely prove member-level refunds. The v2 PUSD implementation remains a Chipnet-only development task and is not enabled for real funds.
