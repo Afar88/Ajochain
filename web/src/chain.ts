@@ -59,6 +59,20 @@ function estimateFee(nIn: number, nOut: number) {
   return BigInt(10 + nIn * 150 + nOut * 100 + 100);
 }
 
+/** Inspect the connected receive address before a circle is created. */
+export async function inspectWalletFunding(net: Net, walletAddress: string) {
+  const prov = await getProvider(net);
+  const utxos = (await prov.getUtxos(walletAddress)).filter((u) => !u.token);
+  const total = utxos.reduce((sum, u) => sum + u.satoshis, 0n);
+  const eligible = utxos.filter((u) => u.vout === 0 && u.satoshis >= 3000n);
+  return {
+    count: utxos.length,
+    total,
+    eligible,
+    utxos: utxos.map((u) => ({ txid: u.txid, vout: u.vout, satoshis: u.satoshis })),
+  };
+}
+
 /**
  * Plan the genesis transaction that starts a circle.
  * The state NFT's category = txid of the wallet UTXO spent at input 0, which must be
@@ -70,7 +84,9 @@ export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, wal
   const utxos = (await prov.getUtxos(walletAddress)).filter((u) => !u.token);
   const genesisUtxo = utxos.find((u) => u.vout === 0 && u.satoshis >= 3000n);
   if (!genesisUtxo) {
-    throw new Error('Your wallet needs a coin sitting at output #0 of a transaction (≥3000 sats). Send yourself a small amount (e.g. 0.0001 BCH) to your receive address #0 and try again.');
+    throw new Error(utxos.length
+      ? `AjoChain can see ${utxos.length} BCH coin(s) totalling ${utxos.reduce((sum, u) => sum + u.satoshis, 0n).toString()} sats at the connected address, but none is eligible for CashTokens genesis. It needs a non-token coin worth at least 3,000 sats whose transaction output index is 0 (vout 0). Your BCH is not missing; this is a transaction-output requirement. Open Wallet details and run “Check BCH funding” to inspect the coins.`
+      : 'No BCH coins were found at the connected receive address on this network. Check that Selene and AjoChain use the same network and receive address, then run “Check BCH funding” again. Do not send more BCH until the address and network are confirmed.');
   }
   const params: CircleParams = { ...base, stateCategory: genesisUtxo.txid };
   const contract = circleContract(params, prov);
