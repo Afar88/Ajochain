@@ -241,10 +241,26 @@ async function renderCircle(encoded: string, manual: boolean) {
 
 const encodeV2Link = (p: V2CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decodeV2Link = (encoded: string): V2CircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid v2 circle link.');
   const raw = decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))));
   const p = JSON.parse(raw);
-  if (p.version !== 2 || typeof p.stateCategory !== 'string' || !Array.isArray(p.members)) throw new Error('This is not a valid v2 circle link.');
-  return { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee) };
+  if (p.version !== 2 || p.network !== 'chipnet' || typeof p.name !== 'string' || !p.name.trim() || p.name.length > 60 ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee)) {
+    throw new Error('This is not a valid v2 circle link.');
+  }
+  const params: V2CircleParams = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee) };
+  if (params.contribution < 1000n || params.contribution > 0x7fffffffffffffffn ||
+      params.maxFee < 0n || params.maxFee > 0x7fffffffffffffffn ||
+      params.maxFee > BigInt(params.members.length) * params.contribution - 1000n) {
+    throw new Error('This v2 circle link contains invalid contribution or fee limits.');
+  }
+  const memberKeys = params.members.map(address => Array.from(addressToPkh(address)).join(','));
+  if (new Set(memberKeys).size !== memberKeys.length) throw new Error('This v2 circle link contains duplicate member addresses.');
+  return params;
 };
 function saveV2Circle(p: V2CircleParams) {
   const list: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
