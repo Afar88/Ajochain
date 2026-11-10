@@ -39,7 +39,9 @@ contract AjoCircleV2(
         require(tx.inputs[0].lockingBytecode == tx.inputs[1].lockingBytecode);
         require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
         require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.inputs[0].tokenAmount == 0);
         require(tx.inputs[1].tokenCategory == stateCategory);
+        require(tx.inputs[1].tokenAmount == 0);
         require(tx.inputs[2].tokenCategory == 0x);
         // BCH consensus verifies the P2PKH unlocking signature for input 2.
         // Matching its locking bytecode to the registered member address binds the deposit.
@@ -54,6 +56,7 @@ contract AjoCircleV2(
         require(stateRound.length == 1);
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.outputs[0].tokenAmount == 0);
         require(tx.outputs[0].nftCommitment == tx.inputs[0].nftCommitment);
         require(tx.outputs[0].value == tx.inputs[0].value + amount);
 
@@ -65,6 +68,7 @@ contract AjoCircleV2(
         int oldCredit = int(receiptCredit);
         require(tx.outputs[1].lockingBytecode == tx.inputs[1].lockingBytecode);
         require(tx.outputs[1].tokenCategory == stateCategory);
+        require(tx.outputs[1].tokenAmount == 0);
         require(tx.outputs[1].nftCommitment == 0x52 + toPaddedBytes(memberIndex, 1) + toPaddedBytes(oldCredit + amount, 8));
         require(tx.outputs[1].value == tx.inputs[1].value);
 
@@ -83,12 +87,14 @@ contract AjoCircleV2(
         require(tx.outputs.length == memberCount + 2);
         require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
         require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.inputs[0].tokenAmount == 0);
 
         int pot = memberCount * contribution;
         for (int i = 0; i < memberCount; i++) {
             int receiptInput = i + 1;
             require(tx.inputs[receiptInput].lockingBytecode == tx.inputs[0].lockingBytecode);
             require(tx.inputs[receiptInput].tokenCategory == stateCategory);
+            require(tx.inputs[receiptInput].tokenAmount == 0);
             bytes receiptPrefix, bytes receiptData = tx.inputs[receiptInput].nftCommitment.split(1);
             bytes receiptMember, bytes receiptCredit = receiptData.split(1);
             require(receiptPrefix == 0x52);
@@ -98,6 +104,7 @@ contract AjoCircleV2(
 
             require(tx.outputs[receiptInput].lockingBytecode == tx.inputs[receiptInput].lockingBytecode);
             require(tx.outputs[receiptInput].tokenCategory == stateCategory);
+            require(tx.outputs[receiptInput].tokenAmount == 0);
             require(tx.outputs[receiptInput].nftCommitment == 0x52 + toPaddedBytes(i, 1) + toPaddedBytes(int(receiptCredit) - contribution, 8));
             require(tx.outputs[receiptInput].value == tx.inputs[receiptInput].value);
         }
@@ -109,6 +116,7 @@ contract AjoCircleV2(
         require(round >= 0 && round < memberCount);
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.outputs[0].tokenAmount == 0);
         require(tx.outputs[0].nftCommitment == 0x53 + toPaddedBytes((round + 1) % memberCount, 1));
         require(tx.outputs[0].value == tx.inputs[0].value - pot);
         require(tx.outputs[0].value >= 1000);
