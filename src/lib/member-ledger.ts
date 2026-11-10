@@ -52,6 +52,12 @@ function sameAsset(a: LedgerAsset, b: LedgerAsset): boolean {
   if (a.kind !== b.kind) return false;
   return a.kind === 'BCH' || (b.kind === 'PUSD' && a.category.toLowerCase() === b.category.toLowerCase());
 }
+function sameFundingEvidence(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((address, index) => address === right[index]);
+}
 
 /** Validate the evidence envelope, not the underlying blockchain proof. */
 export function validateVerifiedContribution(receipt: VerifiedContribution, registeredMemberAddresses: readonly string[]): void {
@@ -69,10 +75,13 @@ export function validateVerifiedContribution(receipt: VerifiedContribution, regi
   if (uniqueFundingAddresses[0] !== receipt.memberAddress) throw new Error('Funding address must match the registered member address');
 }
 
-/** Replay events in order. Duplicate observations are idempotent; conflicts fail closed. */
+/**
+ * Replay events in order. Duplicate observations are idempotent; conflicts fail
+ * closed. A reversal removes the active receipt at that point in the event log,
+ * allowing a later independently verified confirmation after a chain reorg.
+ */
 export function replayMemberLedger(events: readonly MemberLedgerEvent[]): Map<string, VerifiedContribution> {
   const receipts = new Map<string, VerifiedContribution>();
-  const reversed = new Set<string>();
   for (const event of events) {
     const key = receiptKey(event);
     if (event.type === 'contribution_confirmed') {
@@ -81,18 +90,18 @@ export function replayMemberLedger(events: readonly MemberLedgerEvent[]): Map<st
         const identical = existing.memberAddress === event.memberAddress
           && existing.amount === event.amount
           && sameAsset(existing.asset, event.asset)
-          && existing.blockHash.toLowerCase() === event.blockHash.toLowerCase();
+          && existing.blockHash.toLowerCase() === event.blockHash.toLowerCase()
+          && existing.confirmedAt === event.confirmedAt
+          && sameFundingEvidence(existing.fundingAddresses, event.fundingAddresses);
         if (!identical) throw new Error('Conflicting receipt observed for ' + key);
         continue;
       }
-      if (reversed.has(key)) throw new Error('Cannot re-confirm reversed receipt ' + key + ' without a new chain-verification event');
       receipts.set(key, event);
     } else {
       if (!receipts.has(key)) throw new Error('Cannot reverse unknown contribution receipt ' + key);
-      reversed.add(key);
+      receipts.delete(key);
     }
   }
-  for (const key of reversed) receipts.delete(key);
   return receipts;
 }
 
