@@ -9,6 +9,7 @@ import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFu
 import { MockNetworkProvider } from 'cashscript';
 import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
+import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -183,7 +184,7 @@ function howItWorks() {
 function renderHome() {
   const bchCount = JSON.parse(localStorage.getItem('ajo-circles') || '[]').length;
   const pusdCount = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]').length;
-  app.innerHTML = `<section class="hero hero-clean"><p class="kicker">A simpler way to save together</p><h1>Your circle. <span>Your turn. On-chain.</span></h1><p class="lede">Create a shared savings circle, invite your members, and let Bitcoin Cash smart contracts enforce the payout order. No treasurer needed.</p><div class="cta"><a class="btn" href="#/create">Start a circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">Open dashboard</a></div><div class="home-stats"><div><b>${bchCount + pusdCount}</b><span>Saved circles</span></div><div><b>${network === 'chipnet' ? 'Chipnet' : 'Mainnet'}</b><span>Selected network</span></div></div></section><section class="feature-grid home-options"><article class="card feature"><span class="feature-icon">₿</span><h3>BCH savings circle</h3><p>Run a rotating savings circle with BCH. Mainnet uses real funds; proceed carefully.</p><a href="#/create/bch">Create with BCH →</a></article><article class="card feature"><span class="feature-icon">$</span><h3>PUSD savings circle</h3><p>Experimental CashTokens flow with a separate BCH fee reserve. Chipnet only.</p><a href="#/create/pusd">Create with PUSD →</a></article></section><section class="trust-strip"><span class="trust-mark">✓</span><p><b>Rules enforced by code.</b><br/><span class="muted">The contract controls the payout order. You can inspect every transaction on-chain.</span></p></section>`;
+  app.innerHTML = `<section class="hero hero-clean"><p class="kicker">A simpler way to save together</p><h1>Your circle. <span>Your turn. On-chain.</span></h1><p class="lede">Create a shared savings circle, invite your members, and let Bitcoin Cash smart contracts enforce the payout order. No treasurer needed.</p><div class="cta"><a class="btn" href="#/create">Start a circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">Open dashboard</a></div><div class="home-stats"><div><b>${bchCount + pusdCount}</b><span>Saved circles</span></div><div><b>${network === 'chipnet' ? 'Chipnet' : 'Mainnet'}</b><span>Selected network</span></div></div></section><section class="feature-grid home-options"><article class="card feature"><span class="feature-icon">₿</span><h3>BCH savings circle</h3><p>Run a rotating savings circle with BCH. Mainnet uses real funds; proceed carefully.</p><a href="#/create/bch">Create with BCH →</a></article><article class="card feature"><span class="feature-icon">$</span><h3>PUSD savings circle</h3><p>Experimental CashTokens flow with a separate BCH fee reserve. Chipnet only.</p><a href="#/create/pusd">Create with PUSD →</a></article><article class="card feature"><span class="feature-icon">◎</span><h3>BCH member-credit v2</h3><p>Experimental member-specific credits and rollover. Separate Chipnet prototype; not compatible with v1 circles.</p><a href="#/v2/create">Explore v2 prototype →</a></article></section><section class="trust-strip"><span class="trust-mark">✓</span><p><b>Rules enforced by code.</b><br/><span class="muted">The contract controls the payout order. You can inspect every transaction on-chain.</span></p></section>`;
 }
 
 function renderCreate() {
@@ -237,6 +238,85 @@ async function renderCircle(encoded: string, manual: boolean) {
   const load = async () => { const live = $('#live'); try { if (!prov) { prov = await getProvider(p.network); contract = circleContract(p, prov); } const utxos = await contract.getUtxos(); const s = circleStatus(p, utxos); live.innerHTML = `${s.round === null ? '<p class="note">Not started yet: the circle-state NFT is not at the contract address (or is still unconfirmed).</p>' : roundTrack(names, s.round, s.completed)}${potBar(s.available, s.pot)}${s.recipient ? `<p class="turn">This round goes to <b>Member ${s.recipientIndex! + 1}</b> <small>${short(s.recipient)}</small></p>` : ''}<ul class="members">${p.members.map((m, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(m)}</small></span></li>`).join('')}</ul><div class="actions"><button class="btn" id="lpay" ${s.ready ? '' : 'disabled'}>${s.completed ? 'Circle complete' : 'Pay out this round'}</button><button class="ghost" id="lref">Refresh</button></div>`; $('#lref').onclick = load; $('#lpay').onclick = async () => { try { const r = buildPayout(p, contract, await contract.getUtxos(), prov!); const txid = await prov!.sendRawTransaction(r.builder.build()); $('#lerr').innerHTML = `Paid! <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); } catch (e: any) { $('#lerr').textContent = String(e.message || e); } }; } catch (e: any) { live.innerHTML = `<p class="err">Could not read the ${p.network} chain: ${esc(String(e.message || e))}</p><button class="ghost" id="lref">Retry</button>`; $('#lref').onclick = load; } }; load();
 }
 
+
+const encodeV2Link = (p: V2CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+const decodeV2Link = (encoded: string): V2CircleParams => {
+  const raw = decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))));
+  const p = JSON.parse(raw);
+  if (p.version !== 2 || typeof p.stateCategory !== 'string' || !Array.isArray(p.members)) throw new Error('This is not a valid v2 circle link.');
+  return { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee) };
+};
+function saveV2Circle(p: V2CircleParams) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
+  const encoded = encodeV2Link(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-v2-circles', JSON.stringify(list.slice(0, 20)));
+}
+function renderV2Create() {
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">BCH member-credit v2 · experimental</p><h2>Create a v2 circle</h2><p class="note"><b>Chipnet only.</b> This is a separate prototype with on-chain member receipts. It is not audited, does not support PUSD or cancellation, and must not be used with real BCH.</p><form id="v2f"><label>Circle name<input name="name" required maxlength="60" value="Our Ajo v2"/></label><label>Contribution per member (BCH)<input name="amount" required inputmode="decimal" value="0.001"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="v2members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="v2add">+ Add member</button></fieldset><label>Maximum miner fee per transaction (sats)<input name="fee" type="number" min="0" step="1" value="10000"/></label><p class="err" id="v2err"></p><button class="btn" type="submit" ${network === 'chipnet' ? '' : 'disabled'}>${network === 'chipnet' ? 'Create v2 circle' : 'Switch to Chipnet to continue'}</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  $('#v2add').onclick = () => { const el = $('#v2members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#v2f').onsubmit = async ev => {
+    ev.preventDefault(); const err = $('#v2err'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('The v2 prototype is Chipnet-only. Switch networks before creating it.');
+      const fd = new FormData($<HTMLFormElement>('#v2f'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const raw = Number(fd.get('amount'));
+      if (!Number.isFinite(raw) || raw <= 0 || raw * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH contribution amount.');
+      const contribution = BigInt(Math.round(raw * 1e8));
+      const draft = { version: 2 as const, name: String(fd.get('name')).trim(), network, members, contribution, maxFee: BigInt(String(fd.get('fee') || '0')) };
+      if (!wallet.address(network)) { openWalletModal(); throw new Error('Connect your Selene wallet to create the circle.'); }
+      err.textContent = 'Preparing v2 genesis and member receipt NFTs…';
+      const g = await planV2Genesis(draft, wallet.address(network)!);
+      err.textContent = 'Approve the v2 creation transaction in Selene…';
+      await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create v2 Ajo circle "${draft.name}"`, network);
+      saveV2Circle(g.params);
+      location.hash = `#/v2/${encodeV2Link(g.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+async function renderV2Circle(encoded: string) {
+  let p: V2CircleParams;
+  try { p = decodeV2Link(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  if (p.network !== 'chipnet') { app.innerHTML = '<section class="card"><p class="err">V2 circles are Chipnet-only.</p><a href="#/">Back home</a></section>'; return; }
+  saveV2Circle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · v2 member-credit prototype</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${bch(p.contribution)} BCH each per round</p><p class="small muted">V2 link version: 2 · Category: <code>${esc(p.stateCategory)}</code></p><div id="v2status"><p class="muted">Reading member receipts…</p></div><div class="actions"><button class="ghost" id="v2refresh">Refresh</button><button class="ghost" id="v2copy">Copy invite link</button></div><div id="v2depositArea">${myIndex >= 0 ? `<label>Deposit amount (BCH)<input id="v2depositAmount" inputmode="decimal" value="${bch(p.contribution)}"/></label><button class="btn" id="v2deposit">Add credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect the wallet registered for a member slot to add member-specific credit.</p>'}</div><p class="err" id="v2err"></p><p class="muted small">Prototype only: no cancellation or PUSD support. Never use real BCH.</p></section>`;
+  $('#v2copy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#v2status');
+    try {
+      const state = await readV2Circle(p);
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>State reserve</span><b>${bch(state.stateSatoshis)} BCH</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><h3>Verified on-chain member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${bch(credit)} BCH</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'All members have enough credit for this round.' : 'Payout is locked until every member has at least one full contribution in their own receipt.'}</p><button class="btn" id="v2payout" ${state.ready ? '' : 'disabled'}>Pay out this round</button>`;
+      $('#v2payout').onclick = async () => {
+        try { $('#v2err').textContent = 'Preparing payout…'; const result = await planV2Payout(p); const provider = await getProvider(p.network); const txid = await provider.sendRawTransaction(result.builder.build()); $('#v2err').innerHTML = `Payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); }
+        catch (e: any) { $('#v2err').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#v2refresh').onclick = load;
+  const deposit = $('#v2deposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = Number($<HTMLInputElement>('#v2depositAmount').value);
+      if (!Number.isFinite(amount) || amount <= 0 || amount * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH amount.');
+      const sats = BigInt(Math.round(amount * 1e8));
+      $('#v2err').textContent = 'Preparing member-specific deposit…';
+      const plan = await planV2Deposit(p, myIndex, sats, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add credit to your v2 member receipt', network);
+      $('#v2err').textContent = 'Deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#v2err').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
 function renderMine() {
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
   const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">${p.network}</span></li>`; } catch { return ''; } }).join('');
@@ -253,6 +333,8 @@ function route() {
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
   if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
+  if (h === '#/v2/create') return renderV2Create();
+  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(4));
   if (h.startsWith('#/mine')) return renderMine();
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();
