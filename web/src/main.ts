@@ -248,8 +248,8 @@ const decodeV2Link = (encoded: string): V2CircleParams => {
       typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
       !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
       !p.members.every((m: unknown) => typeof m === 'string') ||
-      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
-      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee)) {
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee)) {
     throw new Error('This is not a valid v2 circle link.');
   }
   const params: V2CircleParams = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee) };
