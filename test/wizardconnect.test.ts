@@ -61,7 +61,7 @@ describe('signed transaction broadcast guard', () => {
   it('accepts wallet-added unlocking scripts when all transaction outputs remain exact', () => {
     const wc = walletTransaction();
     const signed = structuredClone(wc.transaction);
-    signed.inputs[0].unlockingBytecode = hexToBin('51');
+    signed.inputs[0].unlockingBytecode = Uint8Array.from([0x51]);
     const decoded = verifySignedTransaction(binToHex(encodeTransaction(signed)), wc.transaction);
     expect(decoded.inputs[0].unlockingBytecode).toEqual(hexToBin('51'));
   });
