@@ -10,6 +10,7 @@ const RECEIPT_DUST = 1000n;
 const CHANGE_DUST = 546n;
 const STATE_PREFIX = '53';
 const RECEIPT_PREFIX = '52';
+const CASH_SCRIPT_INT_MAX = 0x7fffffffffffffffn;
 
 export interface V2CircleParams {
   version: 2;
@@ -28,8 +29,8 @@ function validate(p: V2CircleDraft | V2CircleParams): void {
   if (p.members.length < 2 || p.members.length > 5) throw new Error('A v2 circle needs 2–5 members');
   const members = p.members.map(a => hex(addressToPkh(a)));
   if (new Set(members).size !== members.length) throw new Error('Each member must have a unique BCH address');
-  if (p.contribution < 1000n) throw new Error('Contribution must be at least 1000 sats');
-  if (p.maxFee < 0n || p.maxFee > BigInt(p.members.length) * p.contribution - STATE_DUST) throw new Error('maxFee must leave at least 1000 sats for the recipient');
+  if (p.contribution < 1000n || p.contribution > CASH_SCRIPT_INT_MAX) throw new Error('Contribution must be between 1,000 sats and the CashScript integer limit');
+  if (p.maxFee < 0n || p.maxFee > CASH_SCRIPT_INT_MAX || p.maxFee > BigInt(p.members.length) * p.contribution - STATE_DUST) throw new Error('maxFee must leave at least 1000 sats for the recipient');
   if ('stateCategory' in p && !/^[0-9a-f]{64}$/i.test(p.stateCategory)) throw new Error('Invalid v2 token category');
 }
 function feeEstimate(inputs: number, outputs: number) { return BigInt(10 + inputs * 150 + outputs * 100 + 100); }
@@ -43,7 +44,7 @@ function contractFor(p: V2CircleParams, provider: NetworkProvider): Contract {
   ] as any, { provider, contractType: 'p2sh32' });
 }
 export function v2ReceiptCommitment(index: number, credit: bigint): string {
-  if (!Number.isInteger(index) || index < 0 || index > 4 || credit < 0n || credit > 0xffffffffffffffffn) throw new Error('Invalid member receipt data');
+  if (!Number.isInteger(index) || index < 0 || index > 4 || credit < 0n || credit > CASH_SCRIPT_INT_MAX) throw new Error('Invalid member receipt data');
   return RECEIPT_PREFIX + index.toString(16).padStart(2, '0') + credit.toString(16).padStart(16, '0').match(/../g)!.reverse().join('');
 }
 export function v2CreditFromCommitment(commitment: string): bigint {
@@ -51,7 +52,10 @@ export function v2CreditFromCommitment(commitment: string): bigint {
   return BigInt('0x' + commitment.slice(4).match(/../g)!.reverse().join(''));
 }
 function findState(utxos: SpendableUtxo[], category: string) {
-  return utxos.find(u => u.token?.category === category && u.token.nft?.capability === 'minting' && u.token.nft.commitment.startsWith(STATE_PREFIX));
+  const matches = utxos.filter(u => u.token?.category === category && u.token.nft?.capability === 'minting' && /^53[0-4]$/.test(u.token.nft.commitment));
+  if (matches.length !== 1) throw new Error(matches.length ? 'Multiple v2 state NFTs found; stop and investigate.' : 'V2 state NFT not found or has an invalid commitment.');
+  if (matches[0].token!.amount !== 0n) throw new Error('V2 state NFT unexpectedly carries fungible tokens.');
+  return matches[0];
 }
 function findReceipt(utxos: SpendableUtxo[], category: string, index: number) {
   const prefix = RECEIPT_PREFIX + index.toString(16).padStart(2, '0');
@@ -100,7 +104,7 @@ export async function planV2Genesis(draft: V2CircleDraft, walletAddress: string)
 export async function planV2Deposit(params: V2CircleParams, memberIndex: number, amount: bigint, walletAddress: string) {
   validate(params);
   if (!Number.isInteger(memberIndex) || memberIndex < 0 || memberIndex >= params.members.length) throw new Error('Invalid member index');
-  if (amount <= 0n) throw new Error('Deposit amount must be positive');
+  if (amount <= 0n || amount > CASH_SCRIPT_INT_MAX) throw new Error('Deposit amount is outside the supported CashScript integer range');
   if (hex(addressToPkh(params.members[memberIndex])) !== hex(addressToPkh(walletAddress))) throw new Error('Connected wallet does not match this member slot.');
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
@@ -113,6 +117,7 @@ export async function planV2Deposit(params: V2CircleParams, memberIndex: number,
   const funding = pickFunding((await provider.getUtxos(walletAddress)).filter(u => !u.token), amount + fee + CHANGE_DUST);
   const change = funding.satoshis - amount - fee;
   const oldCredit = v2CreditFromCommitment(receipt.token!.nft!.commitment);
+  if (oldCredit + amount > CASH_SCRIPT_INT_MAX) throw new Error('This deposit would exceed the supported member-credit limit.');
   const builder = new TransactionBuilder({ provider })
     .addInput(state, contract.unlock.addCredit(BigInt(memberIndex), amount))
     .addInput(receipt, contract.unlock.addCredit(BigInt(memberIndex), amount))
