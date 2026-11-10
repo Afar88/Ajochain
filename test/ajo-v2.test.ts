@@ -177,6 +177,22 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(1, 0n))).toBe(true);
   });
 
+  it('rejects deposits when the state NFT round is outside the member range', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: 200_000n,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '53ff' } },
+    }));
+    for (let i = 0; i < members.length; i++) {
+      provider.addUtxo(contract.address, randomUtxo({
+        satoshis: DUST,
+        token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(i, 0n) } },
+      }));
+    }
+    await expect(deposit(provider, contract, 0)).rejects.toThrow();
+  });
+
   it('rejects a member trying to add credit to another member receipt', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
