@@ -122,7 +122,7 @@ Requires Node 20+. Uses `cashscript`/`cashc` **0.14.0**, `@bitauth/libauth` 3, `
 
 ## AjoChain v2 release plan
 
-The planned v2 release combines BCH and PUSD member-level credit, rollover, payouts, and cancellation/refunds. See [AjoChain v2 release plan](docs/AJOCHAIN_V2_RELEASE_PLAN.md). This is an implementation target, not a claim that these features are already shipped.
+The planned v2 release combines BCH and PUSD member-level credit, rollover, payouts, and cancellation/refunds. See [AjoChain v2 release plan](docs/AJOCHAIN_V2_RELEASE_PLAN.md). This is an implementation target, not a claim that these features are already shipped. See the [v2 gap and security review](docs/AJOCHAIN_V2_GAP_AND_SECURITY_REVIEW.md) for current blockers identified in the existing PUSD and BCH prototypes.
 
 ## Member experience v2 design
 
