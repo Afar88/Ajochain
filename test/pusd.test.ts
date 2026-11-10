@@ -149,7 +149,7 @@ describe('AjoCirclePUSD',()=>{
     expect(remaining.filter(u=>u.token?.category===PUSD).reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(150n);
   });
 
-  it('allows unanimous cancellation of state and PUSD contribution UTXOs',async()=>{
+  it('disables unsafe pooled-PUSD cancellation until member-specific refunds exist',async()=>{
     provider.addUtxo(contract.address,state(0));
     for(let i=0;i<5;i++) provider.addUtxo(contract.address,token(PUSD,C));
     const all=await contract.getUtxos();
@@ -159,13 +159,10 @@ describe('AjoCirclePUSD',()=>{
     const unlock=(contract.unlock as any).cancel(...sigArgs);
     const reserve=await feeReserveUtxo();
     const b=new TransactionBuilder({provider}).addInput(st,unlock).addInputs(inputs,unlock).addInput(reserve,unlock)
-      .addOutput({to:tokenAddress(outsider.pkh),amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}})
-      .addOutput({to:tokenAddress(outsider.pkh),amount:5n*TOKEN_SATS,token:{category:PUSD,amount:5n*C}})
-      .addOutput({to:tokenAddress(outsider.pkh),amount:10_000n});
-    await b.send();
-    const recovered=await provider.getUtxos(tokenAddress(outsider.pkh));
-    expect(recovered.reduce((sum,u)=>sum+(u.token?.amount??0n),0n)).toBe(5n*C);
-    expect(recovered.some(u=>u.token?.category===STATE)).toBe(true);
+      .addOutput({to:tokenAddress(members[0].pkh),amount:DUST,token:{category:STATE,amount:0n,nft:{capability:'mutable',commitment:'00'}}})
+      .addOutput({to:tokenAddress(members[0].pkh),amount:5n*TOKEN_SATS,token:{category:PUSD,amount:5n*C}})
+      .addOutput({to:contract.tokenAddress,amount:1000n});
+    await expect(b.send()).rejects.toThrow(/Legacy pooled PUSD cancellation is disabled/);
   });
 
   it('reports PUSD readiness and builds a fee-reserve-only payout',async()=>{

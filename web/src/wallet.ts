@@ -3,7 +3,7 @@
 // derives receive addresses locally and asks the wallet to sign transactions.
 import { initiateDappRelay, type DappRelayResult } from '@wizardconnect/core';
 import { DappConnectionManager, loadSession } from '@wizardconnect/dapp';
-import { binToHex, encodeTransaction, hash160 } from '@bitauth/libauth';
+import { binToHex, decodeTransactionBCH, encodeTransaction, encodeTransactionOutputs, hash160, hexToBin } from '@bitauth/libauth';
 import { sourceOutputToRelay } from '@wizardconnect/core/hdwalletv1-serialize';
 import { pkhToAddress, type Net } from '../../src/lib/ajo';
 import { getProvider } from './chain';
@@ -53,6 +53,46 @@ export function buildWizardSignRequest(
     },
     inputPaths,
   };
+}
+
+
+/**
+ * Verify that the wallet returned a valid serialization of the transaction
+ * AjoChain asked it to sign. Unlocking scripts may change; transaction intent
+ * (version, locktime, input outpoints/order/sequence, and every output) may not.
+ * This is a dapp-side integrity check, not a substitute for covenant validation.
+ */
+export function verifySignedTransaction(signedHex: string, expected: any) {
+  if (typeof signedHex !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(signedHex)) {
+    throw new Error('Wallet returned malformed transaction hex.');
+  }
+  const decoded = decodeTransactionBCH(hexToBin(signedHex));
+  if (typeof decoded === 'string') {
+    throw new Error(`Wallet returned an invalid BCH transaction: ${decoded}`);
+  }
+  if (!expected || !Array.isArray(expected.inputs) || !Array.isArray(expected.outputs)) {
+    throw new Error('Original transaction is incomplete; refusing to broadcast.');
+  }
+  if (decoded.version !== expected.version || decoded.locktime !== expected.locktime) {
+    throw new Error('Wallet changed transaction version or locktime; refusing to broadcast.');
+  }
+  if (decoded.inputs.length !== expected.inputs.length) {
+    throw new Error('Wallet changed transaction inputs; refusing to broadcast.');
+  }
+  for (let i = 0; i < expected.inputs.length; i++) {
+    const actual = decoded.inputs[i];
+    const planned = expected.inputs[i];
+    if (binToHex(actual.outpointTransactionHash) !== binToHex(planned.outpointTransactionHash) ||
+        actual.outpointIndex !== planned.outpointIndex ||
+        actual.sequenceNumber !== planned.sequenceNumber) {
+      throw new Error(`Wallet changed transaction input ${i}; refusing to broadcast.`);
+    }
+  }
+  if (binToHex(encodeTransactionOutputs(decoded.outputs)) !==
+      binToHex(encodeTransactionOutputs(expected.outputs))) {
+    throw new Error('Wallet changed transaction outputs or CashTokens; refusing to broadcast.');
+  }
+  return decoded;
 }
 
 class WizardWallet {
@@ -268,6 +308,10 @@ class WizardWallet {
     if (typeof signedTransaction !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(signedTransaction)) {
       throw new Error('Selene did not return a valid signed transaction. The transaction was not broadcast.');
     }
+    // Decode the complete signed transaction and prove the wallet did not alter
+    // any input outpoint or output (including CashToken category/amount/NFT data).
+    // The decoder also rejects trailing bytes and malformed CashToken prefixes.
+    verifySignedTransaction(signedTransaction, wcObject?.transaction);
     // WizardConnect returns a signed transaction; broadcasting is the dapp's responsibility.
     const provider = await getProvider(network);
     return provider.sendRawTransaction(signedTransaction);

@@ -1,6 +1,6 @@
 import { binToHex, encodeTransaction, hexToBin } from '@bitauth/libauth';
 import { describe, expect, it } from 'vitest';
-import { buildWizardSignRequest } from '../web/src/wallet';
+import { buildWizardSignRequest, verifySignedTransaction } from '../web/src/wallet';
 
 const txid = hexToBin('11'.repeat(32));
 const lockingBytecode = hexToBin(`76a914${'22'.repeat(20)}88ac`);
@@ -53,5 +53,46 @@ describe('WizardConnect signing request serialization', () => {
     const wc = walletTransaction();
     expect(() => buildWizardSignRequest(wc, [1], 0, 'Test')).toThrow(/Invalid wallet signing input index/);
     expect(() => buildWizardSignRequest(wc, [0, 0], 0, 'Test')).toThrow(/duplicate input indexes/);
+  });
+});
+
+
+describe('signed transaction broadcast guard', () => {
+  it('accepts wallet-added unlocking scripts when all transaction outputs remain exact', () => {
+    const wc = walletTransaction();
+    const signed = structuredClone(wc.transaction);
+    signed.inputs[0].unlockingBytecode = Uint8Array.from([0x51]);
+    const decoded = verifySignedTransaction(binToHex(encodeTransaction(signed)), wc.transaction);
+    expect(decoded.inputs[0].unlockingBytecode).toEqual(hexToBin('51'));
+  });
+
+  it('rejects a wallet-modified output value', () => {
+    const wc = walletTransaction();
+    const changed = structuredClone(wc.transaction);
+    changed.outputs[0].valueSatoshis = 999n;
+    expect(() => verifySignedTransaction(binToHex(encodeTransaction(changed)), wc.transaction))
+      .toThrow(/changed transaction outputs or CashTokens/);
+  });
+
+  it('rejects a wallet-added output', () => {
+    const wc = walletTransaction();
+    const changed = structuredClone(wc.transaction);
+    changed.outputs.push({ lockingBytecode, valueSatoshis: 1n });
+    expect(() => verifySignedTransaction(binToHex(encodeTransaction(changed)), wc.transaction))
+      .toThrow(/changed transaction outputs or CashTokens/);
+  });
+
+  it('rejects unexpected trailing bytes', () => {
+    const wc = walletTransaction();
+    const raw = binToHex(encodeTransaction(wc.transaction)) + '00';
+    expect(() => verifySignedTransaction(raw, wc.transaction)).toThrow(/invalid BCH transaction/);
+  });
+
+  it('rejects a changed input outpoint', () => {
+    const wc = walletTransaction();
+    const changed = structuredClone(wc.transaction);
+    changed.inputs[0].outpointIndex = 1;
+    expect(() => verifySignedTransaction(binToHex(encodeTransaction(changed)), wc.transaction))
+      .toThrow(/changed transaction input 0/);
   });
 });

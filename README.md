@@ -5,6 +5,17 @@
 🔗 **Live app:** https://afar88.github.io/Ajochain/ (Chipnet by default; create and manage BCH circles, with experimental PUSD support)
 🏁 Built for **BCH BLAZE 2026** (DoraHacks)
 
+
+## AjoChain V2 Chipnet beta
+
+The app's featured experience is now the **V2 member-credit beta**: each member has an immutable on-chain receipt, deposits are attributed to the registered member, excess credit rolls forward, and payouts rotate through the member order.
+
+- [Open the V2 beta](https://afar88.github.io/Ajochain/#/v2/create) on Chipnet.
+- Use **Chipnet test BCH only**. V2 is an experimental, unaudited prototype; do not use mainnet funds.
+- V2 does **not** yet include PUSD member receipts or cancellation/refund flows. Legacy pooled PUSD remains separate and its unsafe cancellation path is disabled.
+- V1 circles and V2 circles are separate contract versions and cannot be converted into each other.
+
+
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
 ## Getting started
@@ -166,3 +177,8 @@ Neon is connected to the Vercel project. The migration is not yet applied, and t
 ## Chipnet v2 member-credit prototype
 
 The experimental BCH v2 covenant and its trust boundaries are documented in [MEMBER_CREDIT_V2_PROTOTYPE.md](docs/MEMBER_CREDIT_V2_PROTOTYPE.md). This is not a production feature; existing v1 circles remain unchanged.
+
+
+## PUSD member-credit and cancellation security
+
+The PUSD v2 member-credit/refund design and current source-level security findings are documented in [PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md](docs/PUSD_MEMBER_CREDIT_V2_SECURITY_DESIGN.md). The legacy pooled-PUSD cancellation entry point is disabled because it cannot safely prove member-level refunds. The v2 PUSD implementation remains a Chipnet-only development task and is not enabled for real funds.
