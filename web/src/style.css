@@ -2,3 +2,6 @@
 
 /* Home-page refinement */
 .home-options{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}.trust-strip{display:flex;align-items:center;gap:13px;padding:16px 18px;margin:16px 0 8px;background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:16px}.trust-strip p{margin:0;font-size:13px}.trust-mark{display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:50%;background:#e5f3ea;color:var(--green);font-weight:900}@media(max-width:650px){.home-options{grid-template-columns:1fr}.trust-strip{align-items:flex-start}}
+
+.verify { margin: 12px 0; padding: 14px 16px; }
+.verify .issues { margin: 8px 0 0; padding-left: 18px; }
