@@ -167,7 +167,7 @@ wallet.onChange(() => {
   const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
     (wallet.state === 'idle' && previousState === 'disconnecting');
   if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
-      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create'))) route();
+      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/'))) route();
 });
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
