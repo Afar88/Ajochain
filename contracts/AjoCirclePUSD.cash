@@ -99,26 +99,14 @@ contract AjoCirclePUSD(
         }
     }
 
+    // SECURITY: the legacy pooled-PUSD model has no member-level ownership
+    // record. Its former signature-only cancellation did not constrain refund
+    // destinations, token categories, token amounts, or BCH backing. Disable it.
+    // A safe refund requires the separate member-receipt v2 contract.
     function cancel(
         pubkey pk0, sig s0, pubkey pk1, sig s1, pubkey pk2, sig s2,
         pubkey pk3, sig s3, pubkey pk4, sig s4
     ) {
-        bytes selfLock = tx.inputs[this.activeInputIndex].lockingBytecode;
-        // Every contract UTXO being cancelled must authorize the same
-        // transaction. The state NFT remains the canonical input at index 0.
-        if (this.activeInputIndex == 0) {
-            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
-            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
-        } else {
-            require(tx.inputs[0].lockingBytecode == selfLock, "all cancelled inputs must belong to this circle");
-            require(tx.inputs[0].tokenCategory == stateCategory + 0x01, "state NFT category mismatch");
-            require(tx.inputs[0].tokenAmount == 0, "state NFT cannot carry fungible tokens");
-        }
-        require(hash160(pk0) == m0 && checkSig(s0, pk0));
-        require(hash160(pk1) == m1 && checkSig(s1, pk1));
-        if (memberCount > 2) { require(hash160(pk2) == m2 && checkSig(s2, pk2)); }
-        if (memberCount > 3) { require(hash160(pk3) == m3 && checkSig(s3, pk3)); }
-        if (memberCount > 4) { require(hash160(pk4) == m4 && checkSig(s4, pk4)); }
-        require(memberCount >= 2 && memberCount <= 5);
+        require(false, "Legacy pooled PUSD cancellation is disabled: use member-credit v2");
     }
 }
