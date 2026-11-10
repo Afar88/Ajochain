@@ -43,6 +43,11 @@ function creditCommitment(index: number, amount: bigint) {
   return '52' + index.toString(16).padStart(2, '0') + littleEndianHex(amount, 8);
 }
 
+function creditFromCommitment(commitment: string) {
+  const encoded = commitment.slice(4).match(/../g)!.reverse().join('');
+  return BigInt('0x' + encoded);
+}
+
 function addGenesis(provider: MockNetworkProvider, contract: Contract) {
   provider.addUtxo(contract.address, randomUtxo({
     satoshis: 200_000n,
@@ -61,25 +66,27 @@ async function deposit(
   contract: Contract,
   memberIndex: number,
   fundingIndex = memberIndex,
+  amount = CONTRIBUTION,
 ) {
   const all = await contract.getUtxos();
   const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
-  const receipt = all.find((u) => u.token?.nft?.commitment === creditCommitment(memberIndex, 0n)) as SpendableUtxo;
+  const receipt = all.find((u) => u.token?.nft?.commitment?.startsWith('52' + memberIndex.toString(16).padStart(2, '0'))) as SpendableUtxo;
+  const oldCredit = creditFromCommitment(receipt.token!.nft!.commitment);
   const fundingAddress = pkhToAddress(members[fundingIndex].pkh, 'chipnet');
-  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: 120_000n }));
+  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: amount + 20_000n }));
   const builder = new TransactionBuilder({ provider })
-    .addInput(state, contract.unlock.addCredit(BigInt(memberIndex), CONTRIBUTION))
+    .addInput(state, contract.unlock.addCredit(BigInt(memberIndex), amount))
     .addInput(receipt, contract.unlock.addCredit(BigInt(memberIndex), CONTRIBUTION))
     .addInput(funding, members[fundingIndex].sig.unlockP2PKH())
     .addOutput({
       to: contract.tokenAddress,
-      amount: state.satoshis + CONTRIBUTION,
+      amount: state.satoshis + amount,
       token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
     })
     .addOutput({
       to: contract.tokenAddress,
       amount: DUST,
-      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(memberIndex, CONTRIBUTION) } },
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(memberIndex, oldCredit + amount) } },
     })
     .addOutput({ to: fundingAddress, amount: 10_000n });
   await builder.send();
@@ -92,6 +99,18 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     addGenesis(provider, contract);
 
     await deposit(provider, contract, 0);
+    const utxos = await contract.getUtxos();
+    expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(0, CONTRIBUTION))).toBe(true);
+  });
+
+  it('accumulates repeated deposits on the same member receipt', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+
+    await deposit(provider, contract, 0, 0, 60_000n);
+    await deposit(provider, contract, 0, 0, 40_000n);
+
     const utxos = await contract.getUtxos();
     expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(0, CONTRIBUTION))).toBe(true);
   });
