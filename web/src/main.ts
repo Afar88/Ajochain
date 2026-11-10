@@ -239,7 +239,7 @@ async function renderCircle(encoded: string, manual: boolean) {
 }
 
 
-const encodeV2Link = (p: V2CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+const encodeV2Link = (p: V2CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decodeV2Link = (encoded: string): V2CircleParams => {
   const raw = decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))));
   const p = JSON.parse(raw);
