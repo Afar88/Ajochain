@@ -289,6 +289,12 @@ function renderV2Create() {
       const g = await planV2Genesis(draft, wallet.address(network)!);
       err.textContent = 'Approve the v2 creation transaction in Selene…';
       await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create v2 Ajo circle "${draft.name}"`, network);
+      err.textContent = 'Verifying the on-chain state NFT and every member receipt…';
+      const created = await readV2Circle(g.params);
+      if (created.credits.length !== members.length || created.credits.some(credit => credit !== 0n) ||
+          created.stateSatoshis < 1000n) {
+        throw new Error('Genesis transaction was broadcast, but the on-chain state did not match the expected clean v2 layout. Do not invite members; preserve the transaction ID and investigate.');
+      }
       saveV2Circle(g.params);
       location.hash = `#/v2/${encodeV2Link(g.params)}`;
     } catch (e: any) { err.textContent = String(e.message || e); }
