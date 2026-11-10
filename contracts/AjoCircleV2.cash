@@ -28,14 +28,6 @@ contract AjoCircleV2(
     int maxFee,
     bytes32 stateCategory
 ) {
-    function memberHash(int index) returns (bytes20) {
-        if (index == 0) { return m0; }
-        if (index == 1) { return m1; }
-        if (index == 2) { return m2; }
-        if (index == 3) { return m3; }
-        return m4;
-    }
-
     function addCredit(int memberIndex, int amount) {
         require(this.activeInputIndex == 0 || this.activeInputIndex == 1);
         require(memberCount >= 2 && memberCount <= 5);
@@ -51,7 +43,11 @@ contract AjoCircleV2(
         require(tx.inputs[2].tokenCategory == 0x);
         // BCH consensus verifies the P2PKH unlocking signature for input 2.
         // Matching its locking bytecode to the registered member address binds the deposit.
-        require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(memberHash(memberIndex)));
+        if (memberIndex == 0) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m0)); }
+        if (memberIndex == 1) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m1)); }
+        if (memberIndex == 2) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m2)); }
+        if (memberIndex == 3) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m3)); }
+        if (memberIndex == 4) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m4)); }
 
         bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
         require(statePrefix == 0x53);
