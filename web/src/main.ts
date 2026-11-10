@@ -186,12 +186,36 @@ function howItWorks() {
 function renderHome() {
   const bchCount = JSON.parse(localStorage.getItem('ajo-circles') || '[]').length;
   const pusdCount = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]').length;
-  app.innerHTML = `<section class="hero hero-clean"><p class="kicker">AjoChain V2 · Chipnet beta</p><h1>Save together. <span>With every member counted.</span></h1><p class="lede">Member-specific on-chain credits, automatic rollover, and rotating payouts — built on Bitcoin Cash covenants.</p><div class="cta"><a class="btn" href="#/v2/create">Launch a V2 test circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">Open dashboard</a></div><p class="note"><b>Chipnet test coins only.</b> V2 is a beta prototype, not audited. Do not use real BCH. PUSD and cancellation are not included in this V2 release.</p><div class="home-stats"><div><b>${bchCount + pusdCount}</b><span>Saved circles on this browser</span></div><div><b>Chipnet</b><span>V2 network</span></div></div></section><section class="feature-grid home-options"><article class="card feature"><span class="feature-icon">◎</span><h3>AjoChain V2 · Member credits</h3><p>Each member has an on-chain receipt. Deposits are attributed to the registered member, unused credit carries forward, and the payout order cycles.</p><a href="#/v2/create">Create a V2 circle →</a></article><article class="card feature"><span class="feature-icon">₿</span><h3>Classic BCH circles</h3><p>Continue using the original pooled-pot experience for existing circles. V1 circles are separate from V2.</p><a href="#/create/bch">Open classic BCH →</a></article><article class="card feature"><span class="feature-icon">$</span><h3>PUSD circles</h3><p>Legacy pooled PUSD remains experimental. Member-specific PUSD receipts, safe refunds and cancellation are still being built.</p><a href="#/create/pusd">Open legacy PUSD →</a></article></section><section class="trust-strip"><span class="trust-mark">✓</span><p><b>V2 rules enforced by the covenant.</b><br/><span class="muted">The contract checks each member receipt and controls the payout order. Inspect transactions on Chipnet before using the beta.</span></p></section>`;
+  const v2Count = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]').length;
+  app.innerHTML = `<section class="hero hero-clean">
+    <p class="kicker">AjoChain · Bitcoin Cash savings circles</p>
+    <h1>Build wealth <span>better, together.</span></h1>
+    <p class="lede">Create a group savings circle, invite your people, and follow a transparent payout order secured by Bitcoin Cash smart contracts.</p>
+    <div class="cta"><a class="btn" href="#/v2/create">Create a new circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">View my circles</a></div>
+    <div class="home-stats">
+      <div><b>${v2Count + bchCount + pusdCount}</b><span>Circles saved on this device</span></div>
+      <div><b>Chipnet</b><span>Test network by default</span></div>
+    </div>
+  </section>
+  <section class="card home-primary">
+    <div class="home-primary-copy"><p class="kicker">Recommended · V2</p><h2>Start with member credits</h2><p>Every member gets an individual on-chain receipt. Contributions are tracked per person, unused credit rolls forward, and payouts rotate automatically.</p><a class="btn" href="#/v2/create">Create a V2 circle <span aria-hidden="true">→</span></a></div>
+    <div class="home-primary-art" aria-hidden="true"><span>◎</span><i></i><i></i><i></i></div>
+    <p class="note"><b>Chipnet beta only.</b> V2 is experimental and unaudited. Use test BCH only; do not deposit real funds.</p>
+  </section>
+  <section class="legacy-entry"><div><p class="kicker">Already need the original system?</p><h2>Classic circle tools</h2><p class="muted">The older pooled BCH and experimental PUSD creation tools are kept separate from the recommended V2 flow.</p></div><a class="btn ghost" href="#/legacy">Open legacy tools</a></section>
+  <section class="trust-strip"><span class="trust-mark">✓</span><p><b>Existing circles remain accessible.</b><br/><span class="muted">Your original BCH and PUSD invite links still work. V1 circles are not converted or changed when you create a V2 circle.</span></p></section>`;
 }
 
 function renderCreate() {
   const wantsPusd = new URLSearchParams(location.hash.split('?')[1] || '').get('asset') === 'pusd';
-  app.innerHTML = `<section class="card create-choice"><p class="kicker">New circle</p><h2>Choose your savings asset</h2><p class="muted">Select how your group wants to contribute. Your network is controlled from the header.</p><div class="choice-grid"><a class="choice ${!wantsPusd ? 'selected' : ''}" href="#/create/bch"><span>₿</span><div><b>BCH Ajo</b><small>${network === 'chipnet' ? 'Chipnet test network' : 'BCH Mainnet · real funds'}</small></div></a><a class="choice ${wantsPusd ? 'selected' : ''}" href="#/create/pusd"><span>$</span><div><b>PUSD Ajo</b><small>Experimental · Chipnet transactions only</small></div></a></div>${wantsPusd ? '<p class="note">PUSD shares the network selector with BCH, but Mainnet creation and spending remain disabled until the PUSD deployment is independently verified.</p>' : ''}</section>`;
+  app.innerHTML = `<section class="hero legacy-hero"><p class="kicker">Legacy · V1 circle setup</p><h1>Classic savings <span>circle tools.</span></h1><p class="lede">These are the original pooled-pot contracts. Use them only when you specifically need a legacy BCH or PUSD circle. New groups should use V2.</p></section>
+  <section class="card create-choice"><p class="kicker">Choose a legacy asset</p><h2>What will your group contribute?</h2><p class="muted">Both original V1 creation options are available here. Existing V1 circles and invite links are unchanged.</p>
+  <div class="choice-grid">
+    <a class="choice ${!wantsPusd ? 'selected' : ''}" href="#/create/bch"><span>₿</span><div><b>Classic BCH · V1</b><small>${network === 'chipnet' ? 'Chipnet test network' : 'Mainnet · real BCH'}</small><em>Pooled BCH pot and rotating payout</em></div></a>
+    <a class="choice ${wantsPusd ? 'selected' : ''}" href="#/create/pusd"><span>$</span><div><b>Legacy PUSD · V1</b><small>Experimental · Chipnet only</small><em>Token circle with a BCH fee reserve</em></div></a>
+  </div>
+  ${wantsPusd ? '<p class="note">PUSD is experimental and Chipnet-only. Mainnet creation and spending remain disabled.</p>' : '<p class="note">Classic BCH uses a pooled pot. It does not provide V2-style per-member contribution receipts. Only use test coins on Chipnet.</p>'}
+  <a class="legacy-back" href="#/v2/create">← Back to recommended V2 creation</a></section>`;
 }
 
 function renderBchCreate() {
@@ -385,7 +409,7 @@ function route() {
   renderHeader();
   const h = location.hash || '#/';
   document.querySelectorAll('nav a').forEach((a) => { const href = (a as HTMLAnchorElement).getAttribute('href')!; const active = href === '#/' ? h === '#/' : h.startsWith(href); a.classList.toggle('on', active); });
-  if (h === '#/create' || h.startsWith('#/create?')) return renderCreate();
+  if (h === '#/legacy' || h.startsWith('#/legacy?') || h === '#/create' || h.startsWith('#/create?')) return renderCreate();
   if (h.startsWith('#/create/bch')) return renderBchCreate();
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
