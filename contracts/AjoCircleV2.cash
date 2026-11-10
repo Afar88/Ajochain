@@ -14,8 +14,9 @@ pragma cashscript ^0.14.0;
 // payout inputs: 0 state NFT, 1..N receipt NFTs in member-index order
 // payout outputs: 0 updated state NFT, 1..N updated receipts, N+1 round recipient
 //
-// Chipnet prototype only. Cancellation, genesis/deployment construction, PUSD,
-// wallet transaction building, and adversarial tests are not yet implemented.
+// Chipnet prototype only. Client-side genesis/deposit/payout planners and an
+// isolated UI exist, but genesis output inspection, independent-wallet testing,
+// cancellation, PUSD, and a security review remain outstanding.
 
 contract AjoCircleV2(
     bytes20 m0,
