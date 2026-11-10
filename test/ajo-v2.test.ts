@@ -33,8 +33,14 @@ function makeContract(provider: MockNetworkProvider) {
   ], { provider, contractType: 'p2sh32' });
 }
 
+// CashScript integers use little-endian byte encoding in commitments.
+function littleEndianHex(value: bigint, byteLength: number) {
+  return value.toString(16).padStart(byteLength * 2, '0')
+    .match(/../g)!.reverse().join('');
+}
+
 function creditCommitment(index: number, amount: bigint) {
-  return '52' + index.toString(16).padStart(2, '0') + amount.toString(16).padStart(16, '0');
+  return '52' + index.toString(16).padStart(2, '0') + littleEndianHex(amount, 8);
 }
 
 function addGenesis(provider: MockNetworkProvider, contract: Contract) {
