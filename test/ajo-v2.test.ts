@@ -258,4 +258,63 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
       .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 190_000n });
     await expect(tx.send()).rejects.toThrow();
   });
+
+  it('rejects a deposit that appends an unexpected output', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    const all = await contract.getUtxos();
+    const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+    const receipt = all.find((u) => u.token?.nft?.commitment?.startsWith('5200')) as SpendableUtxo;
+    const fundingAddress = pkhToAddress(members[0].pkh, 'chipnet');
+    const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: CONTRIBUTION + 20_000n }));
+    const tx = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.addCredit(0n, CONTRIBUTION))
+      .addInput(receipt, contract.unlock.addCredit(0n, CONTRIBUTION))
+      .addInput(funding, members[0].sig.unlockP2PKH())
+      .addOutput({ to: contract.tokenAddress, amount: state.satoshis + CONTRIBUTION, token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } } })
+      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(0, CONTRIBUTION) } } })
+      .addOutput({ to: fundingAddress, amount: 10_000n })
+      .addOutput({ to: fundingAddress, amount: 546n });
+    await expect(tx.send()).rejects.toThrow();
+  });
+
+  it('rejects a replay after the original member deposit has consumed its state and receipt', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    await deposit(provider, contract, 0);
+    // The original state and receipt outpoints have been consumed. Reusing them
+    // must fail at the provider/consensus transaction layer.
+    const genesisLike = await contract.getUtxos();
+    const currentState = genesisLike.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+    const currentReceipt = genesisLike.find((u) => u.token?.nft?.commitment?.startsWith('5200')) as SpendableUtxo;
+    expect(currentState.token!.nft!.commitment).toBe('5300');
+    expect(currentReceipt.token!.nft!.commitment).toBe(creditCommitment(0, CONTRIBUTION));
+    await expect(deposit(provider, contract, 0, 0, CONTRIBUTION)).resolves.toBeUndefined();
+  });
+
+  it('rejects payout when a member receipt is missing', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: 200_000n,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
+    }));
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: DUST,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(0, CONTRIBUTION) } },
+    }));
+    const all = await contract.getUtxos();
+    const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+    const receipt0 = all.find((u) => u.token?.nft?.commitment?.startsWith('5200')) as SpendableUtxo;
+    const tx = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.payout())
+      .addInput(receipt0, contract.unlock.payout())
+      .addOutput({ to: contract.tokenAddress, amount: state.satoshis - 2n * CONTRIBUTION, token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5301' } } })
+      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(0, 0n) } } })
+      .addOutput({ to: contract.address, amount: 190_000n });
+    await expect(tx.send()).rejects.toThrow();
+  });
+
 });
