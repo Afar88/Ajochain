@@ -49,7 +49,9 @@ export function v2ReceiptCommitment(index: number, credit: bigint): string {
 }
 export function v2CreditFromCommitment(commitment: string): bigint {
   if (!/^52[0-4][0-9a-f][0-9a-f]{16}$/i.test(commitment)) throw new Error('Invalid member receipt commitment');
-  return BigInt('0x' + commitment.slice(4).match(/../g)!.reverse().join(''));
+  const credit = BigInt('0x' + commitment.slice(4).match(/../g)!.reverse().join(''));
+  if (credit > CASH_SCRIPT_INT_MAX) throw new Error('Member credit exceeds the CashScript integer limit');
+  return credit;
 }
 function findState(utxos: SpendableUtxo[], category: string) {
   const matches = utxos.filter(u => u.token?.category === category && u.token.nft?.capability === 'minting' && /^53[0-4]$/.test(u.token.nft.commitment));
