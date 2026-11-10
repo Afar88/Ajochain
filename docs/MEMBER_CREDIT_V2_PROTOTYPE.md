@@ -40,9 +40,9 @@ The covenant checks every member's own receipt is at least one contribution, deb
 ## Critical implementation gates still open
 
 1. The contract must compile under the pinned CashScript compiler.
-2. Mock-provider tests currently cover correct/incorrect funding address, repeated deposits, member-specific rollover, two-cycle rotation, insufficient credit, swapped receipt order, and the payout fee cap. Still required: real genesis receipt creation, altered commitments, missing/duplicate receipts, extra outputs, wrong token capabilities/categories, and replay attempts.
-3. The client planners and isolated v2 UI now build genesis, member deposits, and payouts. They still require transaction-layout inspection and end-to-end validation with independent Selene wallets on Chipnet.
-4. The genesis transaction must be verified output-by-output and must not mint unexpected NFTs of the system category.
+2. Mock-provider tests cover correct/incorrect funding address, repeated deposits, member-specific rollover, two-cycle rotation, insufficient credit, swapped receipt order, payout fee cap, extra deposit outputs, and missing receipt rejection. The client rejects duplicate/missing state or member receipts and unexpected category UTXOs at the covenant address. Full adversarial capability/category/altered-commitment coverage and replay testing against real transaction bytes remain required.
+3. The client planners and isolated v2 UI build genesis, member deposits, and payouts. After genesis broadcast, the UI now re-reads the covenant address and verifies one state NFT, one receipt per member, and zero initial member credits before sharing the invite. This checks the contract-address UTXO set, not every output in the raw genesis transaction; independent raw-transaction inspection is still required.
+4. The genesis transaction still needs independent raw-transaction output-by-output inspection to prove it did not mint unexpected NFTs of the system category outside the covenant address.
 5. Cancellation must refund each member's remaining credit safely. It is intentionally not implemented in this prototype.
 6. PUSD needs a separate token-sidecar design and separate tests; this BCH contract does not support PUSD.
 7. V2 invite links and local dashboard entries use an explicit `version: 2` marker and a separate `#/v2/` route; they are not decoded as v1 circles. Chipnet tests with multiple independent Selene wallets and an independent security review are still required before any mainnet consideration.
