@@ -155,6 +155,7 @@ export async function planV2Payout(params: V2CircleParams) {
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const all = await contract.getUtxos();
+  assertV2UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
   if (!state) throw new Error('V2 state NFT not found.');
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
