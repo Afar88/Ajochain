@@ -35,7 +35,7 @@ Fixed layout:
 - Inputs: state NFT (0), one receipt per member in member-index order (1..N).
 - Outputs: updated state NFT (0), updated receipts in the same order (1..N), current round recipient (N+1).
 
-The covenant checks every member's own receipt is at least one contribution, debits exactly one contribution from every receipt, increments the round once, reduces the pooled BCH value by exactly N contributions, and pays the round recipient with a fee bounded by `maxFee`. Any member's shortfall blocks payout; another member's surplus cannot cover it. Remaining credit stays in that member's receipt.
+The covenant checks every member's own receipt is at least one contribution, debits exactly one contribution from every receipt, advances the recipient index cyclically (`0..N-1`, then back to `0`), reduces the pooled BCH value by exactly N contributions, and pays the round recipient with a fee bounded by `maxFee`. This permits repeated rotation cycles instead of stopping after the first cycle. Any member's shortfall blocks payout; another member's surplus cannot cover it. Remaining credit stays in that member's receipt.
 
 ## Critical implementation gates still open
 
