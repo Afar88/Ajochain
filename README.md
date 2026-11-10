@@ -5,6 +5,17 @@
 🔗 **Live app:** https://afar88.github.io/Ajochain/ (Chipnet by default; create and manage BCH circles, with experimental PUSD support)
 🏁 Built for **BCH BLAZE 2026** (DoraHacks)
 
+
+## AjoChain V2 Chipnet beta
+
+The app's featured experience is now the **V2 member-credit beta**: each member has an immutable on-chain receipt, deposits are attributed to the registered member, excess credit rolls forward, and payouts rotate through the member order.
+
+- [Open the V2 beta](https://afar88.github.io/Ajochain/#/v2/create) on Chipnet.
+- Use **Chipnet test BCH only**. V2 is an experimental, unaudited prototype; do not use mainnet funds.
+- V2 does **not** yet include PUSD member receipts or cancellation/refund flows. Legacy pooled PUSD remains separate and its unsafe cancellation path is disabled.
+- V1 circles and V2 circles are separate contract versions and cannot be converted into each other.
+
+
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
 ## Getting started
