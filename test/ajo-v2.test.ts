@@ -51,7 +51,7 @@ function creditFromCommitment(commitment: string) {
 function addGenesis(provider: MockNetworkProvider, contract: Contract) {
   provider.addUtxo(contract.address, randomUtxo({
     satoshis: 200_000n,
-    token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: state.token!.nft!.commitment } },
+    token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
   }));
   for (let i = 0; i < members.length; i++) {
     provider.addUtxo(contract.address, randomUtxo({
@@ -81,7 +81,7 @@ async function deposit(
     .addOutput({
       to: contract.tokenAddress,
       amount: state.satoshis + amount,
-      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '5300' } },
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: state.token!.nft!.commitment } },
     })
     .addOutput({
       to: contract.tokenAddress,
