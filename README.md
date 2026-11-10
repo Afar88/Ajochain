@@ -17,6 +17,8 @@
 6. Open **My circles** to return to circles saved in this browser.
 
 For Chipnet BCH, obtain test coins from a Chipnet faucet such as [tbch.googol.cash](https://tbch.googol.cash/). PUSD is experimental and remains Chipnet-only. Never enter or share a seed phrase or private key with AjoChain.
+
+For the current limitations and rollout plan for member-level contribution receipts and carry-forward credit, see [Member contribution accounting](docs/member-contribution-accounting.md). Individual credit is not yet enforced by the deployed aggregate-pot contracts.
 ---
 
 
