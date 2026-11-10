@@ -279,7 +279,7 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
     await expect(tx.send()).rejects.toThrow();
   });
 
-  it('rejects a replay after the original member deposit has consumed its state and receipt', async () => {
+  it('accepts a fresh deposit using the recreated state and receipt outpoints', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
     addGenesis(provider, contract);
