@@ -76,7 +76,7 @@ async function deposit(
   const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: amount + 20_000n }));
   const builder = new TransactionBuilder({ provider })
     .addInput(state, contract.unlock.addCredit(BigInt(memberIndex), amount))
-    .addInput(receipt, contract.unlock.addCredit(BigInt(memberIndex), CONTRIBUTION))
+    .addInput(receipt, contract.unlock.addCredit(BigInt(memberIndex), amount))
     .addInput(funding, members[fundingIndex].sig.unlockP2PKH())
     .addOutput({
       to: contract.tokenAddress,
@@ -89,6 +89,36 @@ async function deposit(
       token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(memberIndex, oldCredit + amount) } },
     })
     .addOutput({ to: fundingAddress, amount: 10_000n });
+  await builder.send();
+}
+
+async function payoutRound(provider: MockNetworkProvider, contract: Contract, recipientIndex: number) {
+  const all = await contract.getUtxos();
+  const state = all.find((u) => u.token?.nft?.capability === 'minting') as SpendableUtxo;
+  const receipts = members.map((_, i) => all.find((u) =>
+    u.token?.nft?.commitment?.startsWith('52' + i.toString(16).padStart(2, '0')),
+  ) as SpendableUtxo);
+  const builder = new TransactionBuilder({ provider })
+    .addInput(state, contract.unlock.payout())
+    .addInputs(receipts, contract.unlock.payout())
+    .addOutput({
+      to: contract.tokenAddress,
+      amount: state.satoshis - BigInt(members.length) * CONTRIBUTION,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '530' + ((recipientIndex + 1) % members.length).toString(16) } },
+    });
+
+  for (let i = 0; i < receipts.length; i++) {
+    const credit = creditFromCommitment(receipts[i].token!.nft!.commitment);
+    builder.addOutput({
+      to: contract.tokenAddress,
+      amount: receipts[i].satoshis,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(i, credit - CONTRIBUTION) } },
+    });
+  }
+  builder.addOutput({
+    to: pkhToAddress(members[recipientIndex].pkh, 'chipnet'),
+    amount: BigInt(members.length) * CONTRIBUTION - MAX_FEE,
+  });
   await builder.send();
 }
 
@@ -113,6 +143,38 @@ describe('AjoCircleV2 member-credit covenant prototype', () => {
 
     const utxos = await contract.getUtxos();
     expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(0, CONTRIBUTION))).toBe(true);
+  });
+
+  it('pays a complete round and preserves excess member credit as rollover', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    await deposit(provider, contract, 0, 0, 150_000n);
+    await deposit(provider, contract, 1, 1, 100_000n);
+
+    await payoutRound(provider, contract, 0);
+
+    const utxos = await contract.getUtxos();
+    expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(0, 50_000n))).toBe(true);
+    expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(1, 0n))).toBe(true);
+    expect(utxos.some((u) => u.token?.nft?.commitment === '5301')).toBe(true);
+  });
+
+  it('completes two full cycles and wraps payout order back to member zero', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+
+    for (let cycle = 0; cycle < 2; cycle++) {
+      await deposit(provider, contract, 0);
+      await deposit(provider, contract, 1);
+      await payoutRound(provider, contract, cycle % members.length);
+    }
+
+    const utxos = await contract.getUtxos();
+    expect(utxos.some((u) => u.token?.nft?.commitment === '5300')).toBe(true);
+    expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(0, 0n))).toBe(true);
+    expect(utxos.some((u) => u.token?.nft?.commitment === creditCommitment(1, 0n))).toBe(true);
   });
 
   it('rejects a member trying to add credit to another member receipt', async () => {
