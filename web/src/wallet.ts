@@ -19,7 +19,7 @@ function restorePublicPaths(mgr: DappConnectionManager) {
   try {
     const raw = localStorage.getItem(PATHS_STORAGE_KEY);
     if (!raw) return;
-    const paths: unknown = JSON.parse(raw);
+    const paths: any = JSON.parse(raw);
     if (!Array.isArray(paths)) throw new Error('Invalid cached WizardConnect paths');
     mgr.restoreSessionPaths(paths);
   } catch {
