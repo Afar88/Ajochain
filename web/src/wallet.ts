@@ -169,7 +169,10 @@ class WizardWallet {
       this.walletName = null;
       this.receiveIndex = 0;
       this.state = 'disconnected';
-      this.cleanup(mgr, relay);
+      // A dropped mobile/background relay is not the user's request to forget
+      // this wallet. Preserve the encrypted WizardConnect session so it can
+      // be resumed when the browser returns to the foreground.
+      this.cleanup(mgr, relay, false);
       this.emit();
     });
 
@@ -184,12 +187,10 @@ class WizardWallet {
       this.relay = relay;
       if (!existing) { this.uri = relay.uri; this.qrUri = relay.qrUri; }
       mgr.attachRelay(relay);
-      // Give slow mobile wallet handoffs time, but surface a recovery action
-      // instead of leaving the UI in an endless "Connecting…" state.
       this.connectionWatchdog = setTimeout(() => {
         if (!this.isCurrent(mgr, generation) || this.state !== 'connecting') return;
         this.error = existing
-          ? 'Your saved Selene session has not responded. Start a fresh pairing to reconnect.'
+          ? 'Your saved Selene session has not responded. Retry the saved session or start a fresh pairing.'
           : 'Still waiting for Selene. Keep AjoChain open, or start a fresh pairing.';
         this.emit();
       }, 20000);
@@ -226,9 +227,9 @@ class WizardWallet {
     this.connect();
   }
 
-  /** Resume a stored WizardConnect session after page reload, if one exists. */
+  /** Resume a stored WizardConnect session after reload or mobile app switching. */
   tryResume() {
-    if (this.state !== 'idle') return;
+    if (this.state !== 'idle' && this.state !== 'disconnected') return;
     try {
       const s = loadSession();
       if (s?.walletPublicKey) {
@@ -308,11 +309,7 @@ class WizardWallet {
     if (typeof signedTransaction !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(signedTransaction)) {
       throw new Error('Selene did not return a valid signed transaction. The transaction was not broadcast.');
     }
-    // Decode the complete signed transaction and prove the wallet did not alter
-    // any input outpoint or output (including CashToken category/amount/NFT data).
-    // The decoder also rejects trailing bytes and malformed CashToken prefixes.
     verifySignedTransaction(signedTransaction, wcObject?.transaction);
-    // WizardConnect returns a signed transaction; broadcasting is the dapp's responsibility.
     const provider = await getProvider(network);
     return provider.sendRawTransaction(signedTransaction);
   }
