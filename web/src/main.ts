@@ -24,14 +24,15 @@ let network: Net = (localStorage.getItem('ajo-net') as Net) || 'chipnet';
 
 function renderHeader() {
   const w = wallet;
-  const addr = w.state === 'connected' ? w.address(network) : null;
+  const hasRestorableAddress = w.state === 'connecting' || w.state === 'reconnecting' || w.state === 'connected';
+  const addr = hasRestorableAddress ? w.address(network) : null;
   $('#hdr').innerHTML = `
     <a class="brand" href="#/"><span class="logo">◎</span> AjoChain</a>
     <div class="hdr-right">
       <button class="net ${network}" id="netBtn" title="Switch network">${network === 'chipnet' ? 'Chipnet · Test' : 'Mainnet'}</button>
       ${w.state === 'connected'
         ? `<button class="wallet on" id="walletBtn" title="Disconnect">${esc(w.walletName || 'Wallet')} · ${addr ? short(addr) : ''}</button>`
-        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : w.state === 'disconnecting' ? 'Disconnecting…' : 'Connect wallet'}</button>`}
+        : `<button class="wallet" id="walletBtn" title="${addr ? 'Saved public address; wallet handshake still required' : 'Connect wallet'}">${addr ? `Saved · ${short(addr)}` : w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : w.state === 'disconnecting' ? 'Disconnecting…' : 'Connect wallet'}</button>`}
     </div>`;
   $('#netBtn').onclick = () => {
     const next: Net = network === 'chipnet' ? 'mainnet' : 'chipnet';
