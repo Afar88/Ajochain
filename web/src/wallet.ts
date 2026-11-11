@@ -12,6 +12,36 @@ export type WalletState = 'idle' | 'connecting' | 'connected' | 'reconnecting' |
 
 type Listener = () => void;
 
+const PATHS_STORAGE_KEY = 'ajochain:wizardconnect-paths:v1';
+const RECEIVE_INDEX_STORAGE_KEY = 'ajochain:wizardconnect-receive-index:v1';
+
+function restorePublicPaths(mgr: DappConnectionManager) {
+  try {
+    const raw = localStorage.getItem(PATHS_STORAGE_KEY);
+    if (!raw) return;
+    const paths: unknown = JSON.parse(raw);
+    if (!Array.isArray(paths)) throw new Error('Invalid cached WizardConnect paths');
+    mgr.restoreSessionPaths(paths);
+  } catch {
+    // Never let stale/corrupt public derivation data block a fresh connection.
+    try { localStorage.removeItem(PATHS_STORAGE_KEY); } catch { /* best effort */ }
+  }
+}
+
+function savePublicPaths(mgr: DappConnectionManager) {
+  try {
+    const paths = mgr.getSessionPaths();
+    if (Array.isArray(paths) && paths.length) localStorage.setItem(PATHS_STORAGE_KEY, JSON.stringify(paths));
+  } catch { /* public path caching is an enhancement, not a connection requirement */ }
+}
+
+function loadReceiveIndex() {
+  try {
+    const value = Number(localStorage.getItem(RECEIVE_INDEX_STORAGE_KEY));
+    return Number.isSafeInteger(value) && value >= 0 && value <= 100000 ? value : 0;
+  } catch { return 0; }
+}
+
 /**
  * Convert CashScript's native transaction object to WizardConnect's canonical
  * relay representation. Transactions travel as raw hex; source outputs use
@@ -101,7 +131,7 @@ class WizardWallet {
   qrUri: string | null = null;
   walletName: string | null = null;
   /** Receive-address index selected by matching Selene's displayed address. */
-  receiveIndex = 0;
+  receiveIndex = loadReceiveIndex();
   error: string | null = null;
   private mgr: DappConnectionManager | null = null;
   private relay: DappRelayResult | null = null;
@@ -141,12 +171,16 @@ class WizardWallet {
     const generation = ++this.generation;
     const icon = new URL('favicon.svg', location.href).toString();
     const mgr = new DappConnectionManager('AjoChain', icon);
+    // Restore public xpub paths before the relay handshake so cached addresses
+    // remain derivable during a page reload. These paths cannot sign or spend.
+    restorePublicPaths(mgr);
     this.mgr = mgr;
 
     mgr.on('walletready', () => {
       if (!this.isCurrent(mgr, generation)) return;
       this.clearConnectionWatchdog();
       this.walletName = mgr.walletName;
+      savePublicPaths(mgr);
       this.error = null;
       this.state = 'connected';
       this.emit();
@@ -167,7 +201,7 @@ class WizardWallet {
       this.uri = null;
       this.qrUri = null;
       this.walletName = null;
-      this.receiveIndex = 0;
+      this.receiveIndex = loadReceiveIndex();
       this.state = 'disconnected';
       // A dropped mobile/background relay is not the user's request to forget
       // this wallet. Preserve the encrypted WizardConnect session so it can
@@ -221,6 +255,10 @@ class WizardWallet {
     this.qrUri = null;
     this.walletName = null;
     this.receiveIndex = 0;
+    try {
+      localStorage.removeItem(PATHS_STORAGE_KEY);
+      localStorage.removeItem(RECEIVE_INDEX_STORAGE_KEY);
+    } catch { /* best effort */ }
     this.error = null;
     this.state = 'idle';
     this.emit();
@@ -264,6 +302,10 @@ class WizardWallet {
       this.qrUri = null;
       this.walletName = null;
       this.receiveIndex = 0;
+      try {
+        localStorage.removeItem(PATHS_STORAGE_KEY);
+        localStorage.removeItem(RECEIVE_INDEX_STORAGE_KEY);
+      } catch { /* best effort */ }
       this.error = null;
       this.state = 'idle';
       this.emit();
@@ -287,6 +329,7 @@ class WizardWallet {
       if (!pk) return null;
       if (pkhToAddress(hash160(pk), network).toLowerCase() === target) {
         this.receiveIndex = i;
+        try { localStorage.setItem(RECEIVE_INDEX_STORAGE_KEY, String(i)); } catch { /* best effort */ }
         this.emit();
         return i;
       }
