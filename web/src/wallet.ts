@@ -166,7 +166,9 @@ class WizardWallet {
         this.state === 'connected' || this.state === 'disconnecting') return;
     this.clearConnectionWatchdog();
     this.error = null;
-    this.receiveIndex = 0;
+    // Keep the previously matched public receive index when resuming a saved session.
+    // A fresh pairing starts at index 0 and can be matched again by the user.
+    this.receiveIndex = existing ? loadReceiveIndex() : 0;
     this.state = 'connecting';
     const generation = ++this.generation;
     const icon = new URL('favicon.svg', location.href).toString();
