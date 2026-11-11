@@ -400,6 +400,13 @@ function route() {
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();
 }
+// Keep wallet UI in sync with relay events and watchdog timeouts. This is
+// essential for showing recovery actions after a saved-session handshake stalls.
+wallet.onChange(() => {
+  renderHeader();
+  if ($('#modal').classList.contains('show')) void renderWalletModal();
+});
+
 window.addEventListener('hashchange', route);
 // Mobile wallet apps temporarily background the browser during approval. Resume
 // the encrypted WizardConnect session when the browser becomes active again.
