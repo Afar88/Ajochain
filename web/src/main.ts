@@ -451,8 +451,8 @@ function renderMine() {
         const merged = [...new Set([...group.values, ...existing])].slice(0, 20);
         localStorage.setItem(group.storage, JSON.stringify(merged));
       }
-      backupError.textContent = `Backup imported. ${total} circle entr${total === 1 ? 'y' : 'ies'} checked; your dashboard has been updated.`;
       route();
+      $('#circleBackupError').textContent = `Backup imported. ${total} circle entr${total === 1 ? 'y' : 'ies'} checked; your dashboard has been updated.`;
     } catch (e: any) {
       backupError.textContent = String(e.message || e);
     } finally {
