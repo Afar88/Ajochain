@@ -36,7 +36,7 @@ CREATE INDEX IF NOT EXISTS members_wallet_circle_lookup
   WHERE wallet_address IS NOT NULL AND invite_state <> 'revoked';
 
 -- A recovery proof is a separate purpose. Bind every challenge to its exact
--- origin, audience and BCH network; store hashes, never reusable bearer secrets.
+-- origin, audience and BCH network, and store hashes, never reusable bearer secrets.
 ALTER TABLE auth_challenges
   ADD COLUMN IF NOT EXISTS origin TEXT,
   ADD COLUMN IF NOT EXISTS audience TEXT,
