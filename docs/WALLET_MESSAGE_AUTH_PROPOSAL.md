@@ -6,11 +6,11 @@ Status: design proposal only. This document does not claim that WizardConnect or
 
 AjoChain can currently obtain public derivation keys and request transaction signatures through WizardConnect. An xpub or a connected session is not proof that the user is presently authorising a recovery request. Cross-device recovery needs an explicit, verifiable proof of control over a BCH address.
 
-The existing WizardConnect documentation describes the base handshake and the `hdwalletv1` transaction-signing protocol. It also allows protocol extensions, but unknown actions are ignored. Therefore both the wallet and dapp must explicitly implement and negotiate this extension before AjoChain can rely on it.
+WizardConnect defines the `hdwalletv1` protocol and permits extension action names. Its handshake also supports an `extensions` map inside the `hdwalletv1` session; an extension entry can advertise wallet capability and carry extension-specific handshake data. Unknown actions must be ignored gracefully. Both wallet and dapp therefore need an agreed capability advertisement and message implementation before AjoChain can rely on this feature.
 
 ## Proposed extension
 
-Proposed protocol identifier: `bch-message-auth-v1`
+Proposed capability name: `bch_message_auth_v1`
 
 Proposed actions:
 
@@ -18,7 +18,7 @@ Proposed actions:
 - `sign_message_response` — wallet to dapp
 - `sign_message_cancel` — dapp to wallet
 
-These are proposal names, not existing WizardConnect actions. The extension must be added to the protocol's negotiated `supported_protocols` list. A dapp must never send the request unless the wallet explicitly advertises support.
+These are proposal names, not existing WizardConnect actions. The preferred initial integration is an explicitly advertised `hdwalletv1` session extension (for example, `session["hdwalletv1"].extensions["bch_message_auth_v1"]`). AjoChain must only send these actions after the wallet advertises the capability. A separate top-level protocol identifier should be used only if WizardConnect maintainers decide that the feature warrants an independently negotiated protocol.
 
 ### Request
 
@@ -72,7 +72,7 @@ After successful signature verification, the server may return only circles for 
 
 ## Required implementation and acceptance tests
 
-1. WizardConnect wallet and dapp implementations negotiate the extension explicitly.
+1. WizardConnect wallet and dapp implementations agree on and advertise the extension capability before using its actions.
 2. The wallet shows a clear, origin-bound approval screen and supports rejection/cancellation.
 3. A signature made by the wrong key, for the wrong address, network, origin, or purpose is rejected.
 4. Expired, malformed, and replayed challenges are rejected; challenge consumption is atomic.
