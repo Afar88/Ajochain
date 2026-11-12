@@ -24,14 +24,15 @@ let network: Net = (localStorage.getItem('ajo-net') as Net) || 'chipnet';
 
 function renderHeader() {
   const w = wallet;
-  const addr = w.state === 'connected' ? w.address(network) : null;
+  const hasRestorableAddress = w.state === 'connecting' || w.state === 'reconnecting' || w.state === 'connected';
+  const addr = hasRestorableAddress ? w.address(network) : null;
   $('#hdr').innerHTML = `
     <a class="brand" href="#/"><span class="logo">◎</span> AjoChain</a>
     <div class="hdr-right">
       <button class="net ${network}" id="netBtn" title="Switch network">${network === 'chipnet' ? 'Chipnet · Test' : 'Mainnet'}</button>
       ${w.state === 'connected'
         ? `<button class="wallet on" id="walletBtn" title="Disconnect">${esc(w.walletName || 'Wallet')} · ${addr ? short(addr) : ''}</button>`
-        : `<button class="wallet" id="walletBtn">${w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : w.state === 'disconnecting' ? 'Disconnecting…' : 'Connect wallet'}</button>`}
+        : `<button class="wallet" id="walletBtn" title="${addr ? 'Saved public address; wallet handshake still required' : 'Connect wallet'}">${addr ? `Saved · ${short(addr)}` : w.state === 'connecting' ? 'Connecting…' : w.state === 'reconnecting' ? 'Reconnecting…' : w.state === 'disconnecting' ? 'Disconnecting…' : 'Connect wallet'}</button>`}
     </div>`;
   $('#netBtn').onclick = () => {
     const next: Net = network === 'chipnet' ? 'mainnet' : 'chipnet';
@@ -78,9 +79,11 @@ async function renderWalletModal() {
       : wallet.state === 'disconnected'
         ? 'Wallet disconnected. Connect again when you are ready.'
         : 'Scan with a WizardConnect-enabled Bitcoin Cash wallet. Your keys never leave your phone.';
-  m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">${status}</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : (wallet.state === 'connecting' ? '<p>Starting secure relay…</p>' : '')}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}${wallet.state === 'connecting' && wallet.error ? '<button class="btn" id="retryPairing">Start a fresh pairing</button>' : ''}<button class="ghost" id="closeModal">Close</button></div>`;
+  m.innerHTML = `<div class="sheet"><h3>Connect with WizardConnect</h3><p class="muted">${status}</p>${qr ? `<img class="qr" src="${qr}" alt="WizardConnect pairing QR"/>` : (wallet.state === 'connecting' ? '<p>Starting secure relay…</p>' : '')}${wallet.uri ? `<button class="ghost" id="copyWiz">Copy pairing link</button> <a class="ghost btnlink" href="${esc(wallet.uri)}">Open in wallet app</a>` : ''}${wallet.error ? `<p class="err">${esc(wallet.error)}</p>` : ''}${wallet.state === 'disconnected' ? '<button class="btn" id="resumeWallet">Reconnect saved session</button>' : ''}${wallet.state === 'connecting' && wallet.error ? '<button class="btn" id="retryPairing">Start a fresh pairing</button>' : ''}<button class="ghost" id="closeModal">Close</button></div>`;
   // Closing the sheet must not kill a live pairing while the user switches to Selene.
   $('#closeModal', m).onclick = () => { m.classList.remove('show'); };
+  const resume = $('#resumeWallet', m);
+  if (resume) resume.onclick = () => wallet.tryResume();
   const retry = $('#retryPairing', m);
   if (retry) retry.onclick = () => wallet.startFreshPairing();
   const copy = $('#copyWiz', m);
@@ -88,7 +91,8 @@ async function renderWalletModal() {
 }
 
 function openWalletModal() {
-  if (wallet.state === 'idle' || wallet.state === 'disconnected') wallet.connect();
+  if (wallet.state === 'disconnected') wallet.tryResume();
+  else if (wallet.state === 'idle') wallet.connect();
   const m = $('#modal');
   m.classList.add('show');
   void renderWalletModal();
@@ -396,6 +400,23 @@ function route() {
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();
 }
+// Keep wallet UI in sync with relay events and watchdog timeouts. This is
+// essential for showing recovery actions after a saved-session handshake stalls.
+wallet.onChange(() => {
+  renderHeader();
+  if ($('#modal').classList.contains('show')) void renderWalletModal();
+});
+
 window.addEventListener('hashchange', route);
+// Mobile wallet apps temporarily background the browser during approval. Resume
+// the encrypted WizardConnect session when the browser becomes active again.
+function recoverWalletOnForeground() {
+  if (document.visibilityState === 'hidden') return;
+  if (wallet.state === 'disconnected' || wallet.state === 'idle') wallet.tryResume();
+}
+document.addEventListener('visibilitychange', recoverWalletOnForeground);
+window.addEventListener('pageshow', recoverWalletOnForeground);
+window.addEventListener('focus', recoverWalletOnForeground);
+window.addEventListener('online', recoverWalletOnForeground);
 wallet.tryResume();
 route();
