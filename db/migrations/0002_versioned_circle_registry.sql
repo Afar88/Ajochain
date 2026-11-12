@@ -55,7 +55,4 @@ ALTER TABLE auth_challenges
 CREATE INDEX IF NOT EXISTS auth_challenges_recovery_expiry
   ON auth_challenges (purpose, expires_at)
   WHERE purpose = 'circle_recovery' AND consumed_at IS NULL;
-
--- Ensure the registry cannot accidentally represent the same circle twice.
-CREATE UNIQUE INDEX IF NOT EXISTS circles_network_contract_unique
-  ON circles (network, contract_address);
+\n
