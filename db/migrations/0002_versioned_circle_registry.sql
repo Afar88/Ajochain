@@ -1,6 +1,6 @@
 -- Versioned V1/V2 circle registry and wallet-recovery challenge foundation.
 -- This migration is additive: do not edit the already-applied 0001 migration.
--- Metadata is an index only; BCH chain state remains authoritative.
+-- Metadata is an index only, and BCH chain state remains authoritative.
 
 ALTER TABLE circles
   ADD COLUMN IF NOT EXISTS constructor_params JSONB,
