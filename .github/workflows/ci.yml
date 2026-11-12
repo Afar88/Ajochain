@@ -5,8 +5,9 @@ on:
   push:
     branches: ["**"]
 
+# CI only verifies code; it must never write back to repository branches.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -18,23 +19,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Compile CashScript contract
+      - name: Compile CashScript contracts
         run: npm run compile
-      - name: Commit regenerated BCH covenant artifact
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node -e "const fs=require('node:fs');const p='contracts/AjoCircle.json';const a=JSON.parse(fs.readFileSync(p,'utf8'));delete a.updatedAt;fs.writeFileSync(p,JSON.stringify(a,null,2)+'\\n')"
-          git add contracts/AjoCircle.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Update compiled BCH covenant artifact"
-            git push
-          fi
       - name: Upload compiled BCH covenant artifact
         uses: actions/upload-artifact@v4
         with:
-          name: compiled-bch-covenant
-          path: contracts/AjoCircle.json
+          name: compiled-bch-covenants
+          path: |
+            contracts/AjoCircle.json
+            contracts/AjoCirclePUSD.json
+            contracts/AjoCircleV2.json
           if-no-files-found: error
       - name: Run tests
         run: npm test
