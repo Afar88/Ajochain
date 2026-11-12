@@ -14,6 +14,23 @@ type Listener = () => void;
 
 const PATHS_STORAGE_KEY = 'ajochain:wizardconnect-paths:v1';
 const RECEIVE_INDEX_STORAGE_KEY = 'ajochain:wizardconnect-receive-index:v1';
+const ADDRESS_STORAGE_KEY = 'ajochain:wizardconnect-addresses:v1';
+
+function loadCachedAddress(network: Net): string | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ADDRESS_STORAGE_KEY) || '{}');
+    const address = cached?.[network];
+    return typeof address === 'string' && address.length > 10 ? address : null;
+  } catch { return null; }
+}
+
+function saveCachedAddress(network: Net, address: string) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ADDRESS_STORAGE_KEY) || '{}');
+    cached[network] = address;
+    localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(cached));
+  } catch { /* cached public address is a display fallback only */ }
+}
 
 function restorePublicPaths(mgr: DappConnectionManager) {
   try {
@@ -139,6 +156,8 @@ class WizardWallet {
   // Invalidates callbacks from managers that have been replaced or disconnected.
   private generation = 0;
   private connectionWatchdog: ReturnType<typeof setTimeout> | null = null;
+  // Foreground/focus/online can fire in quick succession on mobile browsers.
+  private lastResumeAttemptAt = 0;
 
   onChange(fn: Listener) { this.listeners.push(fn); }
   private emit() { this.listeners.forEach((f) => f()); }
@@ -270,13 +289,17 @@ class WizardWallet {
   /** Resume a stored WizardConnect session after reload or mobile app switching. */
   tryResume() {
     if (this.state !== 'idle' && this.state !== 'disconnected') return;
+    const now = Date.now();
+    if (now - this.lastResumeAttemptAt < 5000) return;
     try {
       const s = loadSession();
       if (s?.walletPublicKey) {
+        this.lastResumeAttemptAt = now;
         this.walletName = s.walletName ?? null;
         this.connect({ privateKey: s.privateKey, secret: s.secret, walletPublicKey: s.walletPublicKey });
       }
     } catch (e) {
+      this.lastResumeAttemptAt = now;
       this.error = e instanceof Error ? e.message : 'Could not restore the saved wallet session';
       this.state = 'idle';
       this.emit();
@@ -307,6 +330,7 @@ class WizardWallet {
       try {
         localStorage.removeItem(PATHS_STORAGE_KEY);
         localStorage.removeItem(RECEIVE_INDEX_STORAGE_KEY);
+        localStorage.removeItem(ADDRESS_STORAGE_KEY);
       } catch { /* best effort */ }
       this.error = null;
       this.state = 'idle';
@@ -317,8 +341,14 @@ class WizardWallet {
   /** WizardConnect receive address at the currently selected BIP32 address index. */
   address(network: Net): string | null {
     const pk = this.mgr?.getPubkey(0, BigInt(this.receiveIndex));
-    if (!pk) return null;
-    return pkhToAddress(hash160(pk), network);
+    if (pk) {
+      const address = pkhToAddress(hash160(pk), network);
+      saveCachedAddress(network, address);
+      return address;
+    }
+    // Keep the last verified public address visible while the mobile relay
+    // reconnects. This is display-only and does not imply an active session.
+    return loadCachedAddress(network);
   }
 
   /** Match a Selene receive address against the xpub supplied by WizardConnect. */
