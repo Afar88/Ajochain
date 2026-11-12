@@ -55,4 +55,3 @@ ALTER TABLE auth_challenges
 CREATE INDEX IF NOT EXISTS auth_challenges_recovery_expiry
   ON auth_challenges (purpose, expires_at)
   WHERE purpose = 'circle_recovery' AND consumed_at IS NULL;
-\n
