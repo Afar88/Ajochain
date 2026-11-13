@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, randomUtxo } from 'cashscript';
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
-import { assertPusdCategoryConfiguredForNetwork, buildPusdPayout, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
+import { assertPusdCategoryConfiguredForNetwork, buildPusdPayout, pusdConstructorArgs, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from '../web/src/pusd-chain.js';
 
 const MAINNET_PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
@@ -73,6 +73,13 @@ describe('AjoCirclePUSD',()=>{
     expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',MAINNET_PUSD)).toThrow(/paused/);
     expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',PUSD)).toThrow(/paused/);
     expect(()=>assertPusdCategoryConfiguredForNetwork('mainnet',MAINNET_PUSD)).not.toThrow();
+  });
+
+  it('blocks shared PUSD contract construction and payout helpers without a verified Chipnet category',()=>{
+    const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
+    const params:PusdCircleParams={name:'Guard test',network:'chipnet',members:addresses,contribution:1n,stateCategory:STATE,pusdCategory:PUSD};
+    expect(()=>pusdConstructorArgs(params)).toThrow(/paused/);
+    expect(()=>buildPusdPayout(params,contract,[],provider)).toThrow(/paused/);
   });
 
   it('blocks PUSD genesis and deposit planners before network access without a verified category',async()=>{
@@ -186,11 +193,7 @@ describe('AjoCirclePUSD',()=>{
     const params:PusdCircleParams={name:'Builder test',network:'chipnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:PUSD};
     const status=pusdStatus(params,all);
     expect(status.ready).toBe(true);
-    const result=buildPusdPayout(params,contract,all,provider);
-    expect(result.recipient).toBe(addresses[0]);
-    expect(result.tokenAmount).toBe(5n*C);
-    expect(result.fee).toBeGreaterThan(0n);
-    expect(result.builder.build()).toBeTruthy();
+    expect(()=>buildPusdPayout(params,contract,all,provider)).toThrow(/paused/);
   });
 
   it('rejects a non-member attempting cancel',async()=>{
