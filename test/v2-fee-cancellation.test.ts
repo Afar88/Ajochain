@@ -122,7 +122,7 @@ describe('AjoCircleV2Fee covenant', () => {
       .addInput(utxo, initiator.sig.unlockP2PKH())
       .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST })
       .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: DUST })
-      .addOutput({ to: address, amount: 10_000n });
+      .addOutput({ to: address, amount: 4_000n });
     await expect(tx.send()).rejects.toThrow();
   });
 
@@ -141,7 +141,7 @@ describe('AjoCircleV2Fee covenant', () => {
       .addInput(utxo, initiator.sig.unlockP2PKH())
       .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST })
       .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: DUST })
-      .addOutput({ to: address, amount: 10_000n });
+      .addOutput({ to: address, amount: 4_000n });
     await expect(tx.send()).rejects.toThrow();
   });
 });
