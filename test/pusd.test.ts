@@ -68,19 +68,10 @@ beforeEach(() => {
 });
 
 describe('AjoCirclePUSD',()=>{
-  it('blocks the published mainnet PUSD category on Chipnet',()=>{
-    expect(()=>assertPusdCategoryNotMainnetOnChipnet('chipnet',MAINNET_PUSD)).toThrow(/mainnet token ID/);
-  });
-
-  it('does not mistake a different category for verified PUSD',()=>{
-    // This guard only rejects the known mainnet ID; deployment still requires
-    // independent verification of the configured Chipnet token category.
-    expect(()=>assertPusdCategoryNotMainnetOnChipnet('chipnet',PUSD)).not.toThrow();
-  });
-
-  it('blocks PUSD use on mainnet until audited',()=>{
-    const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
-    expect(()=>validatePusdParams({name:'mainnet blocked',network:'mainnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:PUSD})).toThrow(/Chipnet-only/);
+  it('keeps Chipnet PUSD disabled until the token category is verified',()=>{
+    expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',MAINNET_PUSD)).toThrow(/paused/);
+    expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',PUSD)).toThrow(/paused/);
+    expect(()=>assertPusdCategoryConfiguredForNetwork('mainnet',MAINNET_PUSD)).not.toThrow();
   });
 
   it('pays the full PUSD pot to all five members over five rounds',async()=>{
