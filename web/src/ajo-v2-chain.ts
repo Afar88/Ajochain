@@ -1,7 +1,7 @@
 import { Contract, TransactionBuilder, placeholderP2PKHUnlocker, type SpendableUtxo, type Artifact, type NetworkProvider } from 'cashscript';
 import { hexToBin } from '@bitauth/libauth';
 import artifactJson from '../../contracts/AjoCircleV2.json' with { type: 'json' };
-import { addressToPkh, type Net } from '../../src/lib/ajo';
+import { addressToPkh, assertNewBchContribution, type Net } from '../../src/lib/ajo';
 import { getProvider } from './chain';
 
 const artifact = artifactJson as unknown as Artifact;
@@ -92,6 +92,7 @@ function pickFunding(utxos: SpendableUtxo[], required: bigint) {
 /** V2 genesis creates the state NFT and all member receipt NFTs in one inspected transaction. */
 export async function planV2Genesis(draft: V2CircleDraft, walletAddress: string) {
   validate(draft);
+  assertNewBchContribution(draft.contribution);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token);
   const genesis = coins.find(u => u.vout === 0 && u.satoshis >= 3000n);
