@@ -92,6 +92,7 @@ async function currentCircle(provider: MockNetworkProvider, contract: Contract) 
 async function payout(provider: MockNetworkProvider, contract: Contract, treasuryPkh = treasury.pkh) {
   const { state, receipts } = await currentCircle(provider, contract);
   const gross = BigInt(members.length) * CONTRIBUTION;
+  const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
   const projectFee = gross / 100n;
   const minerFee = 8_000n;
   const builder = new TransactionBuilder({ provider })
@@ -111,7 +112,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, treasur
   }
   builder.addOutput({ to: pkhToAddress(treasuryPkh, 'chipnet'), amount: projectFee });
   builder.addOutput({
-    to: pkhToAddress(members[0].pkh, 'chipnet'),
+    to: pkhToAddress(members[round].pkh, 'chipnet'),
     amount: gross - projectFee - minerFee,
   });
   await builder.send();
@@ -177,6 +178,22 @@ describe('AjoCircleV2Fee versioned covenant', () => {
     await deposit(provider, contract, 1);
     await payout(provider, contract);
 
+    await expect(cancel(provider, contract)).rejects.toThrow();
+  });
+
+  it('keeps cancellation locked after a complete rotation returns the round to zero', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    addGenesis(provider, contract);
+    await deposit(provider, contract, 0);
+    await deposit(provider, contract, 1);
+    await payout(provider, contract);
+    await deposit(provider, contract, 0);
+    await deposit(provider, contract, 1);
+    await payout(provider, contract);
+
+    const { state } = await currentCircle(provider, contract);
+    expect(state.token!.nft!.commitment).toBe('540001');
     await expect(cancel(provider, contract)).rejects.toThrow();
   });
 
