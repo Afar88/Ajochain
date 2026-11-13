@@ -1,12 +1,12 @@
 # V2 BCH fee and pre-payout cancellation covenant design
 
-Status: design decision record for the isolated V2 branch. A separate `contracts/AjoCircleV2Fee.cash` source now contains the new `0x54 | round | hasPaid` state format, 1% BCH treasury payout enforcement, and a preliminary initiator-only pre-payout cancellation branch. Cancellation refunds each receipt's exact credit plus its attached BCH value, while a 1,000-sat state reserve and a separate initiator input fund the miner fee. The contract is not yet wired into the client, compiler/test verification is pending, and the design still needs adversarial transaction tests. This is not an audited contract and does not authorize deployment. The original `AjoCircleV2.cash` prototype remains unchanged.
+Status: implementation and verification record for the isolated V2 branch. The separate `contracts/AjoCircleV2Fee.cash` covenant is wired into `web/src/ajo-v2-fee-chain.ts` and a separate V2 fee-circle UI flow. It uses the `0x54 | round | hasPaid` state, enforces the 1% BCH treasury output, and supports initiator-only cancellation before the first payout with exact member-credit refunds. The last successful recovery-preview build, commit `08935505709c525fce2285b69e657b3bc60c4b8c`, compiled the CashScript contracts, passed TypeScript checking, passed all 104 tests across 9 files, and completed the Vite build. An additional 5-test integration suite was added afterward in commit `d7113cd05dec8ed79ab44ab414e833cbc1db08ba`; that newer test file has not yet run because Vercel has enforced its daily deployment API limit. This remains an experimental, unaudited Chipnet prototype and is not approved for real funds or production. The original `AjoCircleV2.cash` and all V1 circles remain unchanged.
 
 ## Why a new covenant version is required
 
 The current V2 covenant has a two-byte state commitment (`0x53 | round`) and a payout layout with one recipient output. It does not enforce a project fee, identify an initiator, or permanently record whether a payout has occurred. Adding constructor arguments or changing commitment parsing in place would change the covenant locking bytecode and could make previously created V2 prototype circles unspendable by clients that only know the old artifact.
 
-Implement fee and cancellation rules in a separately named/versioned covenant and artifact. Existing V1 circles and circles created with the original V2 artifact must retain their current decoding and spending path.
+Fee and cancellation rules are implemented in the separately named/versioned `AjoCircleV2Fee` covenant and artifact. Existing V1 circles and circles created with the original V2 artifact retain their current decoding and spending path.
 
 ## Fee policy
 
