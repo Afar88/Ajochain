@@ -3,7 +3,7 @@ pragma cashscript ^0.14.0;
 // AjoChain versioned BCH member-credit covenant with treasury fee enforcement.
 //
 // NFT layout (one CashTokens category per circle):
-//   - Input/output 0: minting state NFT, commitment = 0x53 | round (1 byte)
+//   - Input/output 0: minting state NFT, commitment = 0x54 | round (1 byte) | hasPaid (1 byte)
 //   - Input/output i+1: immutable member receipt NFT, commitment =
 //       0x52 | memberIndex (1 byte) | credit (8-byte integer)
 // All state and receipt UTXOs use this covenant's locking bytecode.
@@ -12,7 +12,7 @@ pragma cashscript ^0.14.0;
 // addCredit outputs: 0 updated state NFT, 1 updated receipt NFT, 2 member change
 //
 // payout inputs: 0 state NFT, 1..N receipt NFTs in member-index order
-// payout outputs: 0 updated state NFT, 1..N updated receipts, N+1 round recipient
+// payout outputs: 0 updated state NFT, 1..N updated receipts, N+1 treasury fee, N+2 round recipient
 //
 // Chipnet prototype only. Client-side genesis/deposit/payout planners and an
 // isolated UI exist, but genesis output inspection, independent-wallet testing,
@@ -137,6 +137,7 @@ contract AjoCircleV2Fee(
         if (round == 4) { recipient = m4; }
         int projectFee = pot / 100;
         require(projectFee >= 546);
+        require(pot - projectFee - maxFee >= 546);
         require(tx.outputs[memberCount + 1].lockingBytecode == new LockingBytecodeP2PKH(treasury));
         require(tx.outputs[memberCount + 1].tokenCategory == 0x);
         require(tx.outputs[memberCount + 1].value == projectFee);
