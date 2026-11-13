@@ -74,16 +74,19 @@ describe('AjoCircleV2Fee covenant', () => {
     const all = await contract.getUtxos();
     const state = all.find(u => u.token?.nft?.capability === 'minting')!;
     const receipts = [0, 1].map(i => all.find(u => u.token?.nft?.commitment.startsWith('52' + i.toString(16).padStart(2, '0')))!);
-    const tx = new TransactionBuilder({ provider })
-      .addInput(state, contract.unlock.payout())
-      .addInputs(receipts, contract.unlock.payout())
-      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '540101' } } })
-      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(0, 0n) } } })
-      .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(1, 0n) } } })
-      .addOutput({ to: pkhToAddress(treasury.pkh, 'chipnet'), amount: 2_000n })
-      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 192_000n });
+    const makePayout = (feeAddress: string, feeAmount: bigint, recipientAmount: bigint) =>
+      new TransactionBuilder({ provider })
+        .addInput(state, contract.unlock.payout())
+        .addInputs(receipts, contract.unlock.payout())
+        .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '540101' } } })
+        .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(0, 0n) } } })
+        .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(1, 0n) } } })
+        .addOutput({ to: feeAddress, amount: feeAmount })
+        .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: recipientAmount });
 
-    await expect(tx.send()).resolves.toBeTruthy();
+    await expect(makePayout(pkhToAddress(members[1].pkh, 'chipnet'), 2_000n, 192_000n).send()).rejects.toThrow();
+    await expect(makePayout(pkhToAddress(treasury.pkh, 'chipnet'), 1_999n, 192_001n).send()).rejects.toThrow();
+    await expect(makePayout(pkhToAddress(treasury.pkh, 'chipnet'), 2_000n, 192_000n).send()).resolves.toBeTruthy();
     const next = await contract.getUtxos();
     expect(next.some(u => u.token?.nft?.commitment === '540101')).toBe(true);
   });
@@ -91,7 +94,7 @@ describe('AjoCircleV2Fee covenant', () => {
   it('allows only the committed initiator to cancel before the first payout', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
-    addCircle(provider, contract, '540000', DUST, [0n, 0n]);
+    addCircle(provider, contract, '540000', 76_000n, [50_000n, 25_000n]);
     const all = await contract.getUtxos();
     const state = all.find(u => u.token?.nft?.capability === 'minting')!;
     const receipts = [0, 1].map(i => all.find(u => u.token?.nft?.commitment.startsWith('52' + i.toString(16).padStart(2, '0')))!);
@@ -101,8 +104,8 @@ describe('AjoCircleV2Fee covenant', () => {
       .addInput(state, unlocker)
       .addInputs(receipts, unlocker)
       .addInput(utxo, initiator.sig.unlockP2PKH())
-      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST })
-      .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: DUST })
+      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 51_000n })
+      .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: 26_000n })
       .addOutput({ to: address, amount: 4_000n });
     await expect(tx.send()).resolves.toBeTruthy();
   });
