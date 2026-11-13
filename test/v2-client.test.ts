@@ -3,9 +3,9 @@ import { v2ReceiptCommitment, v2CreditFromCommitment } from '../web/src/ajo-v2-c
 import { assertNewBchContribution, MIN_NEW_BCH_CONTRIBUTION_SATS } from '../src/lib/ajo.js';
 
 describe('AjoChain v2 creation contribution policy', () => {
-  it('requires at least 0.01 BCH for newly planned circles', () => {
+  it('requires at least 0.002 BCH for newly planned circles', () => {
     expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS)).not.toThrow();
-    expect(() => assertNewBchContribution(999_999n)).toThrow(/0.01 BCH/);
+    expect(() => assertNewBchContribution(199_999n)).toThrow(/0.002 BCH/);
   });
 });
 
