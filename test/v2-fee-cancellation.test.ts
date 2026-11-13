@@ -110,6 +110,37 @@ describe('AjoCircleV2Fee covenant', () => {
     await expect(tx.send()).resolves.toBeTruthy();
   });
 
+  it('rejects a cancellation receipt with a missing member-index byte', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = makeContract(provider);
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: DUST,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '540000' } },
+    }));
+    // Malformed: prefix + 8-byte credit, with the one-byte member index omitted.
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: DUST,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: '52' + '00'.repeat(8) } },
+    }));
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: DUST,
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(1, 0n) } },
+    }));
+    const all = await contract.getUtxos();
+    const state = all.find(u => u.token?.nft?.capability === 'minting')!;
+    const receipts = [0, 1].map(i => all.find(u => u.token?.nft?.commitment.startsWith('52' + (i === 0 ? '00' : '01')))!);
+    const { address, utxo } = addInitiatorFeeInput(provider);
+    const unlocker = contract.unlock.cancel(initiator.pub, initiator.sig);
+    const tx = new TransactionBuilder({ provider })
+      .addInput(state, unlocker)
+      .addInputs(receipts, unlocker)
+      .addInput(utxo, initiator.sig.unlockP2PKH())
+      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST })
+      .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: DUST })
+      .addOutput({ to: address, amount: 4_000n });
+    await expect(tx.send()).rejects.toThrow();
+  });
+
   it('rejects cancellation signed by a non-initiator', async () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
