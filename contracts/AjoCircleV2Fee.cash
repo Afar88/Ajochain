@@ -188,6 +188,7 @@ contract AjoCircleV2Fee(
             bytes receiptPrefix, bytes receiptData = tx.inputs[receiptInput].nftCommitment.split(1);
             bytes receiptMember, bytes receiptCredit = receiptData.split(1);
             require(receiptPrefix == 0x52);
+            require(receiptMember.length == 1);
             require(int(receiptMember) == i);
             require(receiptCredit.length == 8);
             int credit = int(receiptCredit);
