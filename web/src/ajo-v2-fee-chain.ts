@@ -46,7 +46,7 @@ function validate(p: V2FeeCircleDraft | V2FeeCircleParams): void {
   if (p.version !== 2 || p.covenant !== 'fee-v1' || !p.name.trim()) throw new Error('Invalid V2 fee-circle details');
   if (p.network !== 'chipnet') throw new Error('The V2 fee covenant is Chipnet-only.');
   if (p.members.length < 2 || p.members.length > 5) throw new Error('A V2 fee circle needs 2–5 members');
-  const members = p.members.map(a => hex(addressToPkh(a)));
+  const members = p.members.map(a => hex(treasuryAddressToPkh(a, p.network)));
   if (new Set(members).size !== members.length) throw new Error('Each member must have a unique BCH address');
   assertNewBchContribution(p.contribution);
   if (p.contribution > CASH_SCRIPT_INT_MAX) throw new Error('Contribution exceeds the CashScript integer limit');
@@ -57,7 +57,7 @@ function validate(p: V2FeeCircleDraft | V2FeeCircleParams): void {
   if (p.maxFee > pot - projectFee - 546n) throw new Error('Maximum miner fee must leave a dust-safe payout after the 1% project fee');
   const estimate = feeEstimate(p.members.length);
   if (p.maxFee < estimate) throw new Error(`This V2 fee version needs maxFee of at least ${estimate.toString()} sats for its conservative transaction estimate.`);
-  addressToPkh(p.initiator);
+  treasuryAddressToPkh(p.initiator, p.network);
   treasuryAddressToPkh(p.treasury, p.network);
 }
 
@@ -164,7 +164,7 @@ export async function planV2FeeDeposit(params: V2FeeCircleParams, memberIndex: n
   assertUtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
   const receipt = findReceipt(all, params.stateCategory, memberIndex);
-  const fee = 4_000n;
+  const fee = feeEstimate(params.members.length);
   if (fee > params.maxFee) throw new Error('The configured maxFee is too low for a safe V2 member deposit.');
   const funding = pickFunding((await provider.getUtxos(walletAddress)).filter(u => !u.token), amount + fee + CHANGE_DUST);
   const oldCredit = v2FeeCreditFromCommitment(receipt.token!.nft!.commitment);
