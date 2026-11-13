@@ -16,7 +16,7 @@ export async function planPusdGenesis(
   walletAddress: string,
   reserveSats = PUSD_DEFAULT_RESERVE,
 ) {
-  assertPusdCategoryNotMainnetOnChipnet(base.network, base.pusdCategory ?? PUSD_CATEGORY);
+  assertPusdCategoryConfiguredForNetwork(base.network, base.pusdCategory ?? PUSD_CATEGORY);
   const provider = await getProvider(base.network);
   const walletUtxos = await provider.getUtxos(walletAddress);
   const coins = walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
@@ -48,7 +48,7 @@ export async function planPusdContribution(
   walletAddress:string,
   reserveSats=PUSD_DEFAULT_RESERVE,
 ) {
-  assertPusdCategoryNotMainnetOnChipnet(params.network, params.pusdCategory ?? PUSD_CATEGORY);
+  assertPusdCategoryConfiguredForNetwork(params.network, params.pusdCategory ?? PUSD_CATEGORY);
   const provider=await getProvider(params.network);
   const contract=pusdContract(params,provider);
   const walletUtxos=await provider.getUtxos(walletAddress);
