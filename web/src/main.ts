@@ -378,6 +378,110 @@ async function renderV2Circle(encoded: string) {
   await load();
 }
 
+
+function renderV2FeeCreate() {
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">BCH V2 · fee and cancellation covenant</p><h2>Create a V2 fee circle</h2><p class="note"><b>Chipnet only.</b> This version enforces a 1% fee to the fixed treasury, member-specific credits, and initiator cancellation before the first payout. Cancellation is permanently locked after that payout. It is experimental and unaudited; never use real BCH.</p><form id="v2ff"><label>Circle name<input name="name" required maxlength="60" value="Our Ajo V2"/></label><label>Contribution per member (BCH)<input name="amount" type="number" required inputmode="decimal" min="0.002" step="0.00000001" value="0.002"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="v2fmembers">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="v2fadd">+ Add member</button></fieldset><label>Maximum miner fee per transaction (sats)<input name="fee" type="number" min="7000" step="1" value="10000"/></label><label>Fixed BCH Chipnet treasury<input value="${esc(DEFAULT_BCH_CHIPNET_TREASURY)}" readonly/></label><p class="muted small">The treasury destination is committed into the new circle and cannot be changed for that circle later.</p><p class="err" id="v2ferr"></p><button class="btn" type="submit" ${network === 'chipnet' ? '' : 'disabled'}>${network === 'chipnet' ? 'Create V2 fee circle' : 'Switch to Chipnet to continue'}</button></form><a class="ghost btnlink" href="#/mine">Dashboard</a></section>`;
+  $('#v2fadd').onclick = () => { const el = $('#v2fmembers'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#v2ff').onsubmit = async ev => {
+    ev.preventDefault();
+    const err = $('#v2ferr'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('The V2 fee covenant is Chipnet-only.');
+      const walletAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+      if (!walletAddress) { openWalletModal(); throw new Error('Connect your Selene wallet to create the circle.'); }
+      const fd = new FormData($<HTMLFormElement>('#v2ff'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const raw = Number(fd.get('amount'));
+      if (!Number.isFinite(raw) || raw <= 0 || raw * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH contribution amount.');
+      const contribution = BigInt(Math.round(raw * 1e8));
+      assertNewBchContribution(contribution);
+      const draft: V2FeeCircleDraft = {
+        version: 2, covenant: 'fee-v1', name: String(fd.get('name')).trim(), network, members,
+        contribution, maxFee: BigInt(String(fd.get('fee') || '10000')),
+        initiator: walletAddress, treasury: DEFAULT_BCH_CHIPNET_TREASURY,
+      };
+      err.textContent = 'Preparing the versioned V2 state NFT and member receipts…';
+      const plan = await planV2FeeGenesis(draft, walletAddress);
+      err.textContent = 'Approve the V2 fee-circle creation transaction in Selene…';
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, `Create V2 fee circle "${draft.name}"`, network);
+      err.textContent = 'Verifying the new on-chain state and receipt set…';
+      const created = await readV2FeeCircle(plan.params);
+      const tokenUtxos = created.utxos.filter(u => u.token?.category === plan.params.stateCategory);
+      if (created.round !== 0 || created.hasPaid || created.stateSatoshis !== 1_000n ||
+          created.credits.length !== members.length || created.credits.some(c => c !== 0n) ||
+          tokenUtxos.length !== members.length + 1 || tokenUtxos.some(u => u.satoshis < 1_000n) ||
+          tokenUtxos.some(u => u.token?.amount !== 0n)) {
+        throw new Error('Genesis was broadcast, but the on-chain V2 fee state/receipt set did not match the expected layout. Do not invite members; preserve the transaction ID and investigate.');
+      }
+      saveV2FeeCircle(plan.params);
+      location.hash = `#/v2f/${encodeV2FeeLink(plan.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+
+async function renderV2FeeCircle(encoded: string) {
+  let p: V2FeeCircleParams;
+  try { p = decodeV2FeeLink(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  if (p.network !== 'chipnet') { app.innerHTML = '<section class="card"><p class="err">V2 fee circles are Chipnet-only.</p><a href="#/mine">Dashboard</a></section>'; return; }
+  saveV2FeeCircle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  const isInitiator = Boolean(myAddress && Array.from(addressToPkh(myAddress)).join(',') === Array.from(addressToPkh(p.initiator)).join(','));
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · V2 fee covenant</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${bch(p.contribution)} BCH each per round</p><p class="small muted">V2 fee covenant · Category: <code>${esc(p.stateCategory)}</code></p><p class="small muted">Treasury: <code>${esc(p.treasury)}</code></p><div id="v2fstatus"><p class="muted">Reading verified member receipts…</p></div><div class="actions"><button class="ghost" id="v2frefresh">Refresh</button><button class="ghost" id="v2fcopy">Copy invite link</button></div><div id="v2fdepositArea">${myIndex >= 0 ? `<label>Deposit amount (BCH)<input id="v2fdepositAmount" inputmode="decimal" value="${bch(p.contribution)}"/></label><button class="btn" id="v2fdeposit">Add credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect a registered member wallet to add member-specific credit.</p>'}</div><p class="err" id="v2ferr"></p><p class="muted small">The 1% treasury fee and cancellation lock are enforced by this versioned covenant. This prototype is not audited.</p></section>`;
+  $('#v2fcopy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#v2fstatus');
+    try {
+      const state = await readV2FeeCircle(p);
+      const gross = BigInt(p.members.length) * p.contribution;
+      const projectFee = gross / 100n;
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>State reserve</span><b>${bch(state.stateSatoshis)} BCH</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><p class="note">Project fee per payout: 1% (${bch(projectFee)} BCH). Miner fee is separate and capped at ${p.maxFee.toString()} sats.</p><h3>Verified on-chain member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${bch(credit)} BCH</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'All members have enough credit for this round.' : 'Payout is locked until every member has one full contribution in their own receipt.'}</p><p class="small muted">${state.hasPaid ? 'Cancellation is permanently disabled because a payout has occurred.' : 'Cancellation is available only to the initiator before the first payout.'}</p><button class="btn" id="v2fpayout" ${state.ready ? '' : 'disabled'}>Pay out this round</button>${isInitiator && !state.hasPaid ? '<button class="ghost" id="v2fcancel">Cancel circle and refund members</button>' : ''}`;
+      $('#v2fpayout').onclick = async () => {
+        try {
+          $('#v2ferr').textContent = 'Preparing payout with the fixed 1% treasury fee…';
+          const result = await planV2FeePayout(p);
+          const provider = await getProvider(p.network);
+          const txid = await provider.sendRawTransaction(result.builder.build());
+          $('#v2ferr').innerHTML = `Payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`;
+          setTimeout(load, 3000);
+        } catch (e: any) { $('#v2ferr').textContent = String(e.message || e); }
+      };
+      const cancel = $('#v2fcancel');
+      if (cancel) cancel.onclick = async () => {
+        try {
+          if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Reconnect the initiator wallet before cancellation.');
+          if (!confirm('Cancel this circle before its first payout? Each member will receive their own recorded BCH credit and receipt reserve. This cannot be undone.')) return;
+          $('#v2ferr').textContent = 'Preparing member-by-member refunds…';
+          const plan = await planV2FeeCancel(p, wallet.address(network)!);
+          await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Cancel V2 circle and refund each member', network);
+          $('#v2ferr').textContent = 'Cancellation broadcast. Refreshing the circle…';
+          setTimeout(load, 3000);
+        } catch (e: any) { $('#v2ferr').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#v2frefresh').onclick = load;
+  const deposit = $('#v2fdeposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = Number($<HTMLInputElement>('#v2fdepositAmount').value);
+      if (!Number.isFinite(amount) || amount <= 0 || amount * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH amount.');
+      const sats = BigInt(Math.round(amount * 1e8));
+      $('#v2ferr').textContent = 'Preparing member-specific V2 fee-covenant deposit…';
+      const plan = await planV2FeeDeposit(p, myIndex, sats, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add credit to your V2 member receipt', network);
+      $('#v2ferr').textContent = 'Deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#v2ferr').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
 function renderMine() {
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
