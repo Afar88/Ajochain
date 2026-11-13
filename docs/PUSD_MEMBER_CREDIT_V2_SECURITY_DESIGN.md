@@ -86,3 +86,23 @@ Signature design must be reviewed against CashScript's transaction introspection
 ## Release policy
 
 Chipnet only. No real BCH or real PUSD. Keep the new PUSD v2 contract and UI isolated from v1 and from the BCH-only v2 route. Do not merge or enable financial flows until CashScript compilation, adversarial tests, raw transaction inspection, multiple independent Selene-wallet tests, and an independent security review all pass.
+
+
+## Current implementation gate (2026-11-13)
+
+The current AjoChain integration has a network/category mismatch that must be resolved before enabling PUSD transactions:
+
+- `src/lib/pusd.ts` contains the published ParyonUSD category `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. ParyonUSD's own public token page identifies this as its Bitcoin Cash **mainnet** token category.
+- The current PUSD UI and transaction planners are Chipnet-only. No independently verified ParyonUSD Chipnet category is configured in this repository.
+- `PUSD_CHIPNET_CATEGORY` therefore remains `null`. The create/deposit planners and UI payout action fail closed; existing circle links may still be inspected, but the UI does not offer PUSD transactions.
+- Do not infer a Chipnet category from the ticker or copy the mainnet category into Chipnet. Verify the category against an actual Chipnet PUSD UTXO and its authenticated token metadata before configuring it.
+
+### Minimum amount and token precision
+
+CashTokens fungible amounts are integer base units; decimal display precision is metadata, not a property encoded in the token category itself. The BCMR schema supports a token `decimals` field. A third-party asset listing reports two decimals for mainnet ParyonUSD, which would make 0.01 PUSD equal one base unit, but that is not sufficient evidence to configure a Chipnet minimum. Confirm the authenticated ParyonUSD BCMR identity and the exact Chipnet category first. Until then, do not translate the requested 0.01 PUSD into an integer or enable PUSD deposits/payouts.
+
+### Current code status
+
+- BCH V1/V2: new-circle creation guards require 1,000,000 sats (0.01 BCH); existing V1 circle decoding remains permissive for compatibility.
+- PUSD V1: transaction planning is paused until a verified Chipnet category is configured. Existing pooled accounting remains experimental and is not a safe basis for member-level credit.
+- PUSD V2: not yet implemented. The next implementation unit is the member escrow sidecar plus the state/receipt covenant, with atomic deposit and payout transitions. Do not expose a PUSD V2 route until those contracts, planners, raw-transaction checks, and adversarial tests are complete.
