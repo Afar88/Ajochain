@@ -1,6 +1,6 @@
 # V2 BCH fee and pre-payout cancellation covenant design
 
-Status: design decision record for the isolated V2 branch. A separate `contracts/AjoCircleV2Fee.cash` source has been started with the new `0x54 | round | hasPaid` state format and 1% BCH treasury payout enforcement. It is not yet wired into the client, cancellation is not implemented, and compiler/test verification is pending. This is not an audited contract and does not authorize deployment. The original `AjoCircleV2.cash` prototype remains unchanged.
+Status: design decision record for the isolated V2 branch. A separate `contracts/AjoCircleV2Fee.cash` source now contains the new `0x54 | round | hasPaid` state format, 1% BCH treasury payout enforcement, and a preliminary initiator-only pre-payout cancellation branch. Cancellation refunds each receipt's exact credit plus its attached BCH value, while a 1,000-sat state reserve and a separate initiator input fund the miner fee. The contract is not yet wired into the client, compiler/test verification is pending, and the design still needs adversarial transaction tests. This is not an audited contract and does not authorize deployment. The original `AjoCircleV2.cash` prototype remains unchanged.
 
 ## Why a new covenant version is required
 
@@ -37,7 +37,7 @@ Cancellation is permitted only while the permanent has-paid flag is zero. It mus
 
 For each member, refund the exact BCH credit encoded in that member's receipt to that member's registered P2PKH address. Never calculate a refund from the pooled state value or from a pro-rata share. Preserve the member-specific receipt-to-address mapping and reject missing, duplicate, reordered, malformed, or extra category NFTs. The contract must also account for the BCH dust value attached to each receipt and the state reserve without reducing any member's credited principal.
 
-Cancellation miner fees must be funded by a separate, token-free initiator fee input/reserve, not deducted from member credit or any PUSD backing. The exact fee-input/change layout and a safe fee ceiling must be finalized before implementation; if the available fee reserve cannot fund the transaction, cancellation must fail without partially refunding anyone. All refunds and token burns happen atomically in one transaction.
+Cancellation miner fees must be funded by a separate, token-free initiator fee input/reserve, not deducted from member credit or any PUSD backing. The current source layout consumes the state NFT, all receipts in member order, and one token-free initiator P2PKH input. It refunds each member's encoded credit plus that receipt's attached BCH value, then returns token-free change to the initiator. The contract enforces `stateValue = sum(memberCredits) + 1,000` and constrains the residual miner fee to `maxFee`; if the fee input cannot leave dust-safe change within that ceiling, cancellation fails atomically. This preliminary layout must still be validated against real transaction bytes and CashScript compiler behavior. All refunds and token burns happen atomically in one transaction.
 
 After any successful payout, cancellation must be impossible at covenant level, even if the round counter has wrapped back to zero. No UI toggle or database status can override this rule.
 
