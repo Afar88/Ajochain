@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, randomUtxo } from 'cashscript';
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
-import { buildPusdPayout, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
+import { assertPusdCategoryNotMainnetOnChipnet, buildPusdPayout, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
 
-const PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
+const MAINNET_PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
+// Isolated synthetic category for covenant unit tests; not a real PUSD token.
+const PUSD = 'cd'.repeat(32);
 const STATE = 'ab'.repeat(32);
 const DUST = 1000n;
 const STATE_SATS = 1000n;
@@ -66,6 +68,16 @@ beforeEach(() => {
 });
 
 describe('AjoCirclePUSD',()=>{
+  it('blocks the published mainnet PUSD category on Chipnet',()=>{
+    expect(()=>assertPusdCategoryNotMainnetOnChipnet('chipnet',MAINNET_PUSD)).toThrow(/mainnet token ID/);
+  });
+
+  it('does not mistake a different category for verified PUSD',()=>{
+    // This guard only rejects the known mainnet ID; deployment still requires
+    // independent verification of the configured Chipnet token category.
+    expect(()=>assertPusdCategoryNotMainnetOnChipnet('chipnet',PUSD)).not.toThrow();
+  });
+
   it('blocks PUSD use on mainnet until audited',()=>{
     const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
     expect(()=>validatePusdParams({name:'mainnet blocked',network:'mainnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:PUSD})).toThrow(/Chipnet-only/);
