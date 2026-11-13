@@ -106,3 +106,21 @@ CashTokens fungible amounts are integer base units; decimal display precision is
 - BCH V1/V2: new-circle creation guards require 1,000,000 sats (0.01 BCH); existing V1 circle decoding remains permissive for compatibility.
 - PUSD V1: transaction planning is paused until a verified Chipnet category is configured. Existing pooled accounting remains experimental and is not a safe basis for member-level credit.
 - PUSD V2: not yet implemented. The next implementation unit is the member escrow sidecar plus the state/receipt covenant, with atomic deposit and payout transitions. Do not expose a PUSD V2 route until those contracts, planners, raw-transaction checks, and adversarial tests are complete.
+
+
+## Approved product rules (2026-11-13)
+
+The user approved these target settings for new circles:
+
+- BCH minimum contribution: **0.002 BCH per member per round (200,000 satoshis)** for both BCH V1 and BCH V2 creation.
+- PUSD minimum contribution: **0.02 PUSD per member per round**. Do not convert this to base units or enable Chipnet transactions until the actual Chipnet PUSD category and authenticated decimal precision are verified. The published mainnet category must not be reused on Chipnet.
+- Project fee: **1% of each round's gross payout**, deducted from the recipient's payout at the moment that member receives the pot. The transaction must pay the fee to a fixed treasury address encoded in the circle contract at creation. The fee must be disclosed before members join, must not be taken from member escrow balances or PUSD BCH backing, and must not be available to the initiator to redirect. Integer rounding and minimum/dust handling must be specified and tested before implementation.
+- Cancellation: the initiator may cancel before the first payout, including after deposits only when the contract can prove each member's exact refund entitlement. Once the first payout transition occurs, cancellation is permanently disabled. The state NFT must record/commit to the irreversible first-payout transition.
+
+### Compatibility and implementation constraints
+
+- Existing deployed V1 contract addresses and bytecode cannot be retroactively changed. Keep legacy readers and payout paths compatible; do not pretend old circles have the new cancellation or treasury-fee guarantees.
+- New V1 circles need a versioned covenant path if they are to support member-attributed refunds and a treasury output. Legacy pooled V1 accounting cannot safely refund deposits to individual members after money has entered the pool.
+- V2 BCH must enforce the cancellation lock and treasury output in the covenant and planner. PUSD V1 pooled circles remain cancellation-disabled after funds enter; a safe new V1 PUSD version requires member-specific attribution. PUSD V2 must implement cancellation and fee logic alongside member escrow.
+- Never ship a UI-only cancellation restriction or fee calculation. Contract checks must bind the exact treasury destination, fee amount, recipient, state progression, input/output counts, and refund destinations.
+- The approved 1% is a product fee, separate from the miner fee. The miner fee must remain separately capped/funded; do not silently combine the two.
