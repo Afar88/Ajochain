@@ -2,7 +2,7 @@ import './style.css';
 import QRCode from 'qrcode';
 import {
   circleContract, circleStatus, buildPayout, encodeCircle, decodeCircle, addressToPkh,
-  DEFAULT_MAX_FEE, MAX_MEMBERS, MIN_MEMBERS, assertNewBchContribution, type CircleParams, type Net,
+  DEFAULT_MAX_FEE, MAX_MEMBERS, MIN_MEMBERS, assertNewBchContribution, DEFAULT_BCH_CHIPNET_TREASURY, type CircleParams, type Net,
 } from '../../src/lib/ajo';
 import { wallet } from './wallet';
 import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
@@ -11,6 +11,7 @@ import { verifyClassicCircle } from '../../src/lib/recovery';
 import { PUSD_CATEGORY, PUSD_CHIPNET_CATEGORY, PUSD_DEFAULT_RESERVE, assertPusdCategoryConfiguredForNetwork, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
+import { planV2FeeGenesis, planV2FeeDeposit, planV2FeePayout, planV2FeeCancel, readV2FeeCircle, type V2FeeCircleParams, type V2FeeCircleDraft } from './ajo-v2-fee-chain';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -270,6 +271,37 @@ function saveV2Circle(p: V2CircleParams) {
   const encoded = encodeV2Link(p);
   if (!list.includes(encoded)) list.unshift(encoded);
   localStorage.setItem('ajo-v2-circles', JSON.stringify(list.slice(0, 20)));
+}
+
+const encodeV2FeeLink = (p: V2FeeCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+const decodeV2FeeLink = (encoded: string): V2FeeCircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid V2 fee-circle link.');
+  const raw = decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))));
+  const p = JSON.parse(raw);
+  if (p.version !== 2 || p.covenant !== 'fee-v1' || p.network !== 'chipnet' ||
+      typeof p.name !== 'string' || !p.name.trim() || p.name.length > 60 ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee) ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      typeof p.initiator !== 'string' || typeof p.treasury !== 'string') {
+    throw new Error('This is not a valid V2 fee-circle link.');
+  }
+  const params: V2FeeCircleParams = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee) };
+  if (params.contribution < 200_000n || params.maxFee < 1_000n || params.maxFee > 0x7fffffffffffffffn) {
+    throw new Error('This V2 fee-circle link contains invalid contribution or fee limits.');
+  }
+  params.members.forEach(addressToPkh);
+  addressToPkh(params.initiator);
+  addressToPkh(params.treasury);
+  return params;
+};
+function saveV2FeeCircle(p: V2FeeCircleParams) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-v2-fee-circles') || '[]');
+  const encoded = encodeV2FeeLink(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-v2-fee-circles', JSON.stringify(list.slice(0, 20)));
 }
 function renderV2Create() {
   const addr = wallet.state === 'connected' ? wallet.address(network) : null;
