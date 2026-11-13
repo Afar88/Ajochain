@@ -17,6 +17,8 @@ import {
   encodeCircle,
   decodeCircle,
   STATE_DUST,
+  assertNewBchContribution,
+  MIN_NEW_BCH_CONTRIBUTION_SATS,
   type CircleParams,
 } from '../src/lib/ajo.js';
 
@@ -69,6 +71,13 @@ beforeEach(() => {
   p = params(5);
   contract = circleContract(p, provider);
   provider.addUtxo(contract.address, stateUtxo(0));
+});
+
+describe('new BCH circle contribution policy', () => {
+  it('accepts exactly 0.01 BCH and rejects anything smaller', () => {
+    expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS)).not.toThrow();
+    expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS - 1n)).toThrow(/0.01 BCH/);
+  });
 });
 
 describe('AjoCircle covenant: happy path', () => {
