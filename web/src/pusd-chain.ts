@@ -6,7 +6,7 @@ import {
 import { getProvider } from './chain';
 import { encodeCashAddress } from '@bitauth/libauth';
 import { addressToPkh } from '../../src/lib/ajo';
-import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
+import { assertPusdCategoryNotMainnetOnChipnet, pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
 import { encodeRound } from '../../src/lib/ajo';
 
 const estimateFee = (inputs:number, outputs:number) => BigInt(10 + inputs * 150 + outputs * 100 + 100);
@@ -16,6 +16,7 @@ export async function planPusdGenesis(
   walletAddress: string,
   reserveSats = PUSD_DEFAULT_RESERVE,
 ) {
+  assertPusdCategoryNotMainnetOnChipnet(base.network, base.pusdCategory ?? PUSD_CATEGORY);
   const provider = await getProvider(base.network);
   const walletUtxos = await provider.getUtxos(walletAddress);
   const coins = walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
@@ -47,6 +48,7 @@ export async function planPusdContribution(
   walletAddress:string,
   reserveSats=PUSD_DEFAULT_RESERVE,
 ) {
+  assertPusdCategoryNotMainnetOnChipnet(params.network, params.pusdCategory ?? PUSD_CATEGORY);
   const provider=await getProvider(params.network);
   const contract=pusdContract(params,provider);
   const walletUtxos=await provider.getUtxos(walletAddress);
