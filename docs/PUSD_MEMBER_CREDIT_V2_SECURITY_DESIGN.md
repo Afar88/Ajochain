@@ -45,13 +45,13 @@ Do not use an aggregate PUSD pot: it cannot prove which member owns excess credi
 
 Cancellation must be a covenant-enforced transaction, not merely a UI action or an off-chain agreement.
 
-1. **Before any contribution:** the organiser may cancel only if the state NFT and every zero-credit receipt/escrow are consumed and all outputs match the pre-registered member refund destinations. No organiser redirect is allowed.
-2. **After any contribution but before the first payout:** require valid consent from every registered member, with signatures bound to the exact spending transaction. Refund each member's own remaining PUSD credit and its BCH token backing to that member's immutable registered token-aware address. Return each member's token-free BCH reserve contribution only under a separately specified ownership rule. Do not refund the aggregate pool pro rata or let the organiser choose destinations.
-3. **After one or more payouts:** completed payouts are final. Cancellation may refund only each member's remaining on-chain credit and its corresponding escrow/backing. It must not reverse a completed payout or reassign another member's credit.
+1. **Before any contribution:** the initiator may cancel. The state NFT and all empty receipts/escrows must be consumed, with outputs constrained to the pre-registered destinations.
+2. **After contributions but before the first payout:** the initiator may cancel without collecting member signatures only when the covenant can prove each member's exact refundable balance from member-specific receipts and escrow. Refund each member's own credit and its BCH token backing to that member's immutable registered address. No aggregate/pro-rata refund and no organiser-selected destination are permitted. If a legacy version cannot prove member attribution, cancellation is unavailable once funds have entered it.
+3. **After the first payout:** cancellation is permanently disabled. The remaining rounds continue under the original payout order. This lock must be committed in the state NFT and enforced by the covenant.
 4. **Fee funding:** refund transaction fees must come from an explicit token-free reserve with a fixed maximum. Never reduce PUSD token amounts or token backing to pay miner fees.
 5. **Terminal state:** consume the state NFT and every receipt/escrow exactly once; no state or receipt may remain spendable. If the chain cannot guarantee atomic consumption and exact refunds in one transaction within practical transaction limits, cancellation must be unavailable rather than partially executed.
 
-Signature design must be reviewed against CashScript's transaction introspection and BCH sighash semantics. Do not assume a wallet's arbitrary-message signing API exists. Do not accept signatures that can be replayed for another circle, another cancellation, or a different set of outputs.
+The initiator's cancellation signature must be bound to the exact spending transaction and must not be replayable for another circle, another cancellation, or altered refund outputs. Review CashScript introspection and BCH sighash semantics before implementation; do not assume arbitrary-message signing exists in the wallet.
 
 ## BCH v2 security review findings
 
@@ -99,11 +99,11 @@ The current AjoChain integration has a network/category mismatch that must be re
 
 ### Minimum amount and token precision
 
-CashTokens fungible amounts are integer base units; decimal display precision is metadata, not a property encoded in the token category itself. The BCMR schema supports a token `decimals` field. A third-party asset listing reports two decimals for mainnet ParyonUSD, which would make 0.01 PUSD equal one base unit, but that is not sufficient evidence to configure a Chipnet minimum. Confirm the authenticated ParyonUSD BCMR identity and the exact Chipnet category first. Until then, do not translate the requested 0.01 PUSD into an integer or enable PUSD deposits/payouts.
+CashTokens fungible amounts are integer base units; decimal display precision is metadata, not a property encoded in the token category itself. The BCMR schema supports a token `decimals` field. A third-party asset listing reports two decimals for mainnet ParyonUSD, which would make 0.01 PUSD equal one base unit, but that is not sufficient evidence to configure a Chipnet minimum. Confirm the authenticated ParyonUSD BCMR identity and the exact Chipnet category first. Until then, do not translate the requested 0.02 PUSD into an integer or enable PUSD deposits/payouts.
 
 ### Current code status
 
-- BCH V1/V2: new-circle creation guards require 1,000,000 sats (0.01 BCH); existing V1 circle decoding remains permissive for compatibility.
+- BCH V1/V2: new-circle creation guards require 200,000 sats (0.002 BCH); existing V1 circle decoding remains permissive for compatibility.
 - PUSD V1: transaction planning is paused until a verified Chipnet category is configured. Existing pooled accounting remains experimental and is not a safe basis for member-level credit.
 - PUSD V2: not yet implemented. The next implementation unit is the member escrow sidecar plus the state/receipt covenant, with atomic deposit and payout transitions. Do not expose a PUSD V2 route until those contracts, planners, raw-transaction checks, and adversarial tests are complete.
 
