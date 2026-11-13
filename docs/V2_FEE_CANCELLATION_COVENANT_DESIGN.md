@@ -1,6 +1,6 @@
 # V2 BCH fee and pre-payout cancellation covenant design
 
-Status: design decision record for the isolated V2 branch. This is not an audited contract and does not authorize deployment. The current `AjoCircleV2.cash` prototype remains unchanged until the versioned covenant and adversarial tests are ready.
+Status: design decision record for the isolated V2 branch. A separate `contracts/AjoCircleV2Fee.cash` source has been started with the new `0x54 | round | hasPaid` state format and 1% BCH treasury payout enforcement. It is not yet wired into the client, cancellation is not implemented, and compiler/test verification is pending. This is not an audited contract and does not authorize deployment. The original `AjoCircleV2.cash` prototype remains unchanged.
 
 ## Why a new covenant version is required
 
