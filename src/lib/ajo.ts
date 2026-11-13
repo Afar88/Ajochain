@@ -19,6 +19,15 @@ export const artifact = artifactJson as unknown as Artifact;
 
 export const MAX_MEMBERS = 5;
 export const MIN_MEMBERS = 2;
+/** Minimum contribution for newly created BCH circles: 0.01 BCH. */
+export const MIN_NEW_BCH_CONTRIBUTION_SATS = 1_000_000n;
+
+/** Creation-only guard. Keep legacy validators permissive so existing invite links remain usable. */
+export function assertNewBchContribution(amount: bigint): void {
+  if (amount < MIN_NEW_BCH_CONTRIBUTION_SATS) {
+    throw new Error('New BCH circles require at least 0.01 BCH per member (1,000,000 sats). Existing circles are not affected.');
+  }
+}
 /** BCH kept on the state UTXO (it never moves out of the circle). */
 export const STATE_DUST = 1000n;
 /** Default cap on the miner fee taken from the pot per payout. */
