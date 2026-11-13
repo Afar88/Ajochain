@@ -81,7 +81,7 @@ describe('AjoCircleV2Fee covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(0, 0n) } } })
       .addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: CATEGORY, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(1, 0n) } } })
       .addOutput({ to: pkhToAddress(treasury.pkh, 'chipnet'), amount: 2_000n })
-      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 197_000n });
+      .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: 192_000n });
 
     await expect(tx.send()).resolves.toBeTruthy();
     const next = await contract.getUtxos();
@@ -103,7 +103,7 @@ describe('AjoCircleV2Fee covenant', () => {
       .addInput(utxo, initiator.sig.unlockP2PKH())
       .addOutput({ to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST })
       .addOutput({ to: pkhToAddress(members[1].pkh, 'chipnet'), amount: DUST })
-      .addOutput({ to: address, amount: 10_000n });
+      .addOutput({ to: address, amount: 4_000n });
     await expect(tx.send()).resolves.toBeTruthy();
   });
 
