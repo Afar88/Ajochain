@@ -14,9 +14,9 @@ pragma cashscript ^0.14.0;
 // payout inputs: 0 state NFT, 1..N receipt NFTs in member-index order
 // payout outputs: 0 updated state NFT, 1..N updated receipts, N+1 treasury fee, N+2 round recipient
 //
-// Chipnet prototype only. Client-side genesis/deposit/payout planners and an
-// isolated UI exist, but genesis output inspection, independent-wallet testing,
-// cancellation, PUSD, and a security review remain outstanding.
+// Chipnet prototype only. The fee and pre-first-payout cancellation branches are
+// implemented in this versioned covenant. Client integration, genesis output
+// inspection, independent-wallet testing, PUSD, and a security review remain outstanding.
 
 contract AjoCircleV2Fee(
     bytes20 m0,
