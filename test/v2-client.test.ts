@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { v2ReceiptCommitment, v2CreditFromCommitment } from '../web/src/ajo-v2-chain.js';
+import { assertNewBchContribution, MIN_NEW_BCH_CONTRIBUTION_SATS } from '../src/lib/ajo.js';
+
+describe('AjoChain v2 creation contribution policy', () => {
+  it('requires at least 0.01 BCH for newly planned circles', () => {
+    expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS)).not.toThrow();
+    expect(() => assertNewBchContribution(999_999n)).toThrow(/0.01 BCH/);
+  });
+});
 
 describe('AjoChain v2 client receipt encoding', () => {
   it('round-trips zero, normal and large satoshi credits', () => {
