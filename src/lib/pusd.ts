@@ -54,6 +54,9 @@ export function validatePusdParams(p: PusdCircleParams): void {
 
 export function pusdConstructorArgs(p: PusdCircleParams) {
   validatePusdParams(p);
+  // Enforce the verified network/category policy at the shared contract boundary,
+  // not only in the browser transaction planners.
+  assertPusdCategoryConfiguredForNetwork(p.network, p.pusdCategory ?? PUSD_CATEGORY);
   const pkhs = p.members.map(addressToPkh);
   while (pkhs.length < 5) pkhs.push(EMPTY_PKH);
   return [
@@ -115,6 +118,7 @@ export function buildPusdPayout(
   provider: NetworkProvider,
   feeRate = 1,
 ): { builder: TransactionBuilder; fee: bigint; recipient: string; tokenAmount: bigint; round: number } {
+  assertPusdCategoryConfiguredForNetwork(p.network, p.pusdCategory ?? PUSD_CATEGORY);
   const s = pusdStatus(p, utxos);
   if (!s.stateUtxo) throw new Error('PUSD circle not started: state NFT not found');
   if (s.completed) throw new Error('PUSD circle is complete');
