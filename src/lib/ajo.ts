@@ -59,6 +59,26 @@ export function addressToPkh(address: string): Uint8Array {
   return decoded.payload;
 }
 
+/** Provisional BCH Chipnet treasury destination. Existing circles never inherit later changes. */
+export const DEFAULT_BCH_CHIPNET_TREASURY = 'bchtest:zpn8rsua556gewluc0gf5mq4v343w8vc9vfcnq22v6';
+
+/**
+ * Decode and network-check a BCH treasury destination before it is committed
+ * into a new circle's covenant. Returns the exact P2PKH hash for the contract.
+ */
+export function treasuryAddressToPkh(address: string, network: Net): Uint8Array {
+  const decoded = decodeCashAddress(address.trim());
+  if (typeof decoded === 'string') throw new Error(`Invalid treasury address: ${decoded}`);
+  const expectedPrefix = network === 'mainnet' ? 'bitcoincash' : 'bchtest';
+  if (decoded.prefix !== expectedPrefix) {
+    throw new Error(`Treasury address must use the ${expectedPrefix} network prefix`);
+  }
+  if (decoded.type !== 'p2pkh' && decoded.type !== 'p2pkhWithTokens') {
+    throw new Error('Treasury address must be a P2PKH address');
+  }
+  return decoded.payload;
+}
+
 export function pkhToAddress(pkh: Uint8Array, network: Net): string {
   const prefix = network === 'mainnet' ? 'bitcoincash' : 'bchtest';
   const r = encodeCashAddress({ prefix, type: 'p2pkh', payload: pkh });
