@@ -74,9 +74,9 @@ beforeEach(() => {
 });
 
 describe('new BCH circle contribution policy', () => {
-  it('accepts exactly 0.01 BCH and rejects anything smaller', () => {
+  it('accepts exactly 0.002 BCH and rejects anything smaller', () => {
     expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS)).not.toThrow();
-    expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS - 1n)).toThrow(/0.01 BCH/);
+    expect(() => assertNewBchContribution(MIN_NEW_BCH_CONTRIBUTION_SATS - 1n)).toThrow(/0.002 BCH/);
   });
 });
 
