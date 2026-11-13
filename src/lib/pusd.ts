@@ -10,6 +10,17 @@ import { addressToPkh, type CircleParams, type Net, EMPTY_PKH } from './ajo';
 export const PUSD_CATEGORY = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 export const PUSD_DUST = 1000n;
 export const PUSD_DEFAULT_RESERVE = 20_000n;
+
+/**
+ * The published ParyonUSD category is explicitly a Bitcoin Cash mainnet token.
+ * A Chipnet transaction must never silently use that category. This guard does
+ * not prove an alternative category is PUSD; that must be verified separately.
+ */
+export function assertPusdCategoryNotMainnetOnChipnet(network: Net, category: string): void {
+  if (network === 'chipnet' && category.toLowerCase() === PUSD_CATEGORY.toLowerCase()) {
+    throw new Error('The configured PUSD category is the published mainnet token ID. PUSD Chipnet transactions are paused until the actual Chipnet category is independently verified.');
+  }
+}
 export type PusdParams = CircleParams & { pusdCategory?: string };
 
 export interface PusdCircleParams {
@@ -96,6 +107,7 @@ export function buildPusdPayout(
   provider: NetworkProvider,
   feeRate = 1,
 ): { builder: TransactionBuilder; fee: bigint; recipient: string; tokenAmount: bigint; round: number } {
+  assertPusdCategoryNotMainnetOnChipnet(p.network, p.pusdCategory ?? PUSD_CATEGORY);
   const s = pusdStatus(p, utxos);
   if (!s.stateUtxo) throw new Error('PUSD circle not started: state NFT not found');
   if (s.completed) throw new Error('PUSD circle is complete');
