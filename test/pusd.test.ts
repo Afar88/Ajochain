@@ -3,6 +3,7 @@ import { Contract, MockNetworkProvider, TransactionBuilder, SignatureTemplate, r
 import { secp256k1, hash160, encodeCashAddress } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCirclePUSD.json' with { type: 'json' };
 import { assertPusdCategoryConfiguredForNetwork, buildPusdPayout, pusdStatus, validatePusdParams, type PusdCircleParams } from '../src/lib/pusd';
+import { planPusdGenesis, planPusdContribution } from '../web/src/pusd-chain.js';
 
 const MAINNET_PUSD = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
 // Isolated synthetic category for covenant unit tests; not a real PUSD token.
@@ -72,6 +73,14 @@ describe('AjoCirclePUSD',()=>{
     expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',MAINNET_PUSD)).toThrow(/paused/);
     expect(()=>assertPusdCategoryConfiguredForNetwork('chipnet',PUSD)).toThrow(/paused/);
     expect(()=>assertPusdCategoryConfiguredForNetwork('mainnet',MAINNET_PUSD)).not.toThrow();
+  });
+
+  it('blocks PUSD genesis and deposit planners before network access without a verified category',async()=>{
+    const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
+    const base={name:'Guard test',network:'chipnet' as const,members:addresses,contribution:1n,pusdCategory:MAINNET_PUSD};
+    await expect(planPusdGenesis(base,addresses[0])).rejects.toThrow(/paused/);
+    const params:PusdCircleParams={...base,stateCategory:STATE};
+    await expect(planPusdContribution(params,addresses[0])).rejects.toThrow(/paused/);
   });
 
   it('pays the full PUSD pot to all five members over five rounds',async()=>{
