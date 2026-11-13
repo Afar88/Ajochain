@@ -69,6 +69,7 @@ contract AjoCircleV2Fee(
         bytes receiptPrefix, bytes receiptData = tx.inputs[1].nftCommitment.split(1);
         bytes receiptMember, bytes receiptCredit = receiptData.split(1);
         require(receiptPrefix == 0x52);
+        require(receiptMember.length == 1);
         require(int(receiptMember) == memberIndex);
         require(receiptCredit.length == 8);
         int oldCredit = int(receiptCredit);
@@ -107,6 +108,7 @@ contract AjoCircleV2Fee(
             bytes receiptPrefix, bytes receiptData = tx.inputs[receiptInput].nftCommitment.split(1);
             bytes receiptMember, bytes receiptCredit = receiptData.split(1);
             require(receiptPrefix == 0x52);
+            require(receiptMember.length == 1);
             require(int(receiptMember) == i);
             require(receiptCredit.length == 8);
             require(int(receiptCredit) >= contribution);
@@ -158,7 +160,9 @@ contract AjoCircleV2Fee(
      * followed by token-free initiator change. The 1,000-sat state reserve is
      * the cancellation fee reserve; any additional fee comes from initiator input.
      */
-    function cancel() {
+    function cancel(pubkey initiatorPk, sig initiatorSig) {
+        require(hash160(initiatorPk) == initiator);
+        require(checkSig(initiatorSig, initiatorPk));
         require(memberCount >= 2 && memberCount <= 5);
         require(maxFee >= 1000);
         require(this.activeInputIndex >= 0 && this.activeInputIndex <= memberCount);
