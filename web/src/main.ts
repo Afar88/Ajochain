@@ -273,7 +273,7 @@ function saveV2Circle(p: V2CircleParams) {
   localStorage.setItem('ajo-v2-circles', JSON.stringify(list.slice(0, 20)));
 }
 
-const encodeV2FeeLink = (p: V2FeeCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+const encodeV2FeeLink = (p: V2FeeCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString() })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decodeV2FeeLink = (encoded: string): V2FeeCircleParams => {
   if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid V2 fee-circle link.');
   const raw = decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))));
@@ -282,8 +282,8 @@ const decodeV2FeeLink = (encoded: string): V2FeeCircleParams => {
       typeof p.name !== 'string' || !p.name.trim() || p.name.length > 60 ||
       !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
       !p.members.every((m: unknown) => typeof m === 'string') ||
-      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
-      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee) ||
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee) ||
       typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
       typeof p.initiator !== 'string' || typeof p.treasury !== 'string') {
     throw new Error('This is not a valid V2 fee-circle link.');
