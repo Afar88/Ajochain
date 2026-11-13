@@ -29,6 +29,7 @@ jobs:
             contracts/AjoCircle.json
             contracts/AjoCirclePUSD.json
             contracts/AjoCircleV2.json
+            contracts/AjoCircleV2Fee.json
           if-no-files-found: error
       - name: Run tests
         run: npm test
