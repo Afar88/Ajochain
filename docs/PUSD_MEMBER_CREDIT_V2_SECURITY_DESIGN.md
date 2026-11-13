@@ -124,3 +124,17 @@ The user approved these target settings for new circles:
 - V2 BCH must enforce the cancellation lock and treasury output in the covenant and planner. PUSD V1 pooled circles remain cancellation-disabled after funds enter; a safe new V1 PUSD version requires member-specific attribution. PUSD V2 must implement cancellation and fee logic alongside member escrow.
 - Never ship a UI-only cancellation restriction or fee calculation. Contract checks must bind the exact treasury destination, fee amount, recipient, state progression, input/output counts, and refund destinations.
 - The approved 1% is a product fee, separate from the miner fee. The miner fee must remain separately capped/funded; do not silently combine the two.
+
+## Project treasury configuration (Chipnet prototype)
+
+The initially approved BCH Chipnet treasury address is:
+
+`bchtest:zpn8rsua556gewluc0gf5mq4v343w8vc9vfcnq22v6`
+
+This is a provisional, versioned configuration choice, not proof that the address has been validated or funded. Before any contract artifact or transaction planner uses it, the implementation must decode the CashAddr checksum, require the `bchtest` prefix, require a P2PKH or token-aware P2PKH destination as appropriate, and derive the exact locking bytecode. Reject malformed addresses and any mainnet address in Chipnet mode. Do not silently convert networks.
+
+The 1% project fee is calculated from the gross BCH payout in satoshis using integer arithmetic. The rounding rule must be explicit and tested; the initial implementation should use floor division (`grossPayout / 100`) and reject a fee/output layout that would create a dust output or violate the minimum recipient payment. The recipient receives gross payout minus the project fee; the miner fee is separately funded and must not be deducted from the project fee or member credit.
+
+For each new circle, the treasury destination must be committed into the covenant's immutable constructor configuration and shown to every member before joining. Changing this address later applies only to newly created circles; already-created circles retain their original treasury destination. Do not add a mutable off-chain treasury override.
+
+The supplied address is for BCH Chipnet only. It does not establish a PUSD treasury token destination. PUSD fees require a separately validated token-aware destination and exact token-category/output rules; preserve all PUSD BCH backing and keep miner-fee reserves separate.
