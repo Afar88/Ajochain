@@ -13,7 +13,6 @@ import artifactJson from '../../contracts/AjoCircleV2Fee.json' with { type: 'jso
 import {
   addressToPkh,
   assertNewBchContribution,
-  DEFAULT_BCH_CHIPNET_TREASURY,
   treasuryAddressToPkh,
   type Net,
 } from '../../src/lib/ajo';
@@ -260,6 +259,7 @@ export async function readV2FeeCircle(params: V2FeeCircleParams) {
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
   const hasPaid = state.token!.nft!.commitment.slice(4) === '01';
+  if (!Number.isInteger(round) || round < 0 || round >= params.members.length) throw new Error('Invalid V2 fee payout round.');
   const receipts = params.members.map((_, i) => findReceipt(utxos, params.stateCategory, i));
   const credits = receipts.map(u => v2FeeCreditFromCommitment(u.token!.nft!.commitment));
   return {
