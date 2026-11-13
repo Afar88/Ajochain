@@ -532,9 +532,9 @@ function route() {
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
   if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
   if (h === '#/v2f/create') return renderV2FeeCreate();
-  if (h.startsWith('#/v2f/')) return renderV2FeeCircle(h.slice(5));
+  if (h.startsWith('#/v2f/')) return renderV2FeeCircle(h.slice(6));
   if (h === '#/v2/create') return renderV2Create();
-  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(4));
+  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(5));
   if (h.startsWith('#/mine')) return renderMine();
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();
