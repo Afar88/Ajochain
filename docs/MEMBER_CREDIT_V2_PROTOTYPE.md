@@ -53,3 +53,6 @@ The covenant checks every member's own receipt is at least one contribution, deb
 - It does not read or write live balances in the web UI.
 - It does not integrate Neon or create an indexer.
 - It does not claim mainnet safety or production readiness.
+## Next covenant version design
+
+The fee and pre-first-payout cancellation requirements are specified separately in [`V2_FEE_CANCELLATION_COVENANT_DESIGN.md`](./V2_FEE_CANCELLATION_COVENANT_DESIGN.md). They require a separately versioned covenant; do not retrofit the current `0x53 | round` prototype in place. The current prototype remains fee/cancellation-incomplete until that versioned covenant, transaction planners, and adversarial tests are implemented.
