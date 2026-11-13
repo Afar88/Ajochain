@@ -54,7 +54,6 @@ contract AjoCircleV2Fee(
         if (memberIndex == 3) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m3)); }
         if (memberIndex == 4) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m4)); }
 
-        require(tx.inputs[0].value == totalCredits + 1000);
         bytes statePrefix, bytes stateData = tx.inputs[0].nftCommitment.split(1);
         bytes stateRound, bytes hasPaid = stateData.split(1);
         require(statePrefix == 0x54);
@@ -121,6 +120,7 @@ contract AjoCircleV2Fee(
             require(tx.outputs[receiptInput].value == tx.inputs[receiptInput].value);
         }
 
+        require(tx.inputs[0].value == totalCredits + 1000);
         bytes statePrefix, bytes stateData = tx.inputs[0].nftCommitment.split(1);
         bytes stateRound, bytes hasPaid = stateData.split(1);
         require(statePrefix == 0x54);
