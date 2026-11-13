@@ -184,7 +184,7 @@ describe('AjoCirclePUSD',()=>{
     await expect(b.send()).rejects.toThrow(/Legacy pooled PUSD cancellation is disabled/);
   });
 
-  it('reports PUSD readiness and builds a fee-reserve-only payout',async()=>{
+  it('reports PUSD readiness but blocks payout construction until Chipnet category verification',async()=>{
     provider.addUtxo(contract.address,state(0));
     for(let i=0;i<5;i++) provider.addUtxo(contract.address,token(PUSD,C));
     await feeReserveUtxo();
