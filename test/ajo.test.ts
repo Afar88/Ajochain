@@ -19,6 +19,8 @@ import {
   STATE_DUST,
   assertNewBchContribution,
   MIN_NEW_BCH_CONTRIBUTION_SATS,
+  DEFAULT_BCH_CHIPNET_TREASURY,
+  treasuryAddressToPkh,
   type CircleParams,
 } from '../src/lib/ajo.js';
 
@@ -71,6 +73,23 @@ beforeEach(() => {
   p = params(5);
   contract = circleContract(p, provider);
   provider.addUtxo(contract.address, stateUtxo(0));
+});
+
+describe('BCH treasury address validation', () => {
+  it('decodes the approved Chipnet treasury to a 20-byte P2PKH hash', () => {
+    const pkh = treasuryAddressToPkh(DEFAULT_BCH_CHIPNET_TREASURY, 'chipnet');
+    expect(pkh).toBeInstanceOf(Uint8Array);
+    expect(pkh.length).toBe(20);
+  });
+
+  it('rejects the Chipnet treasury when a Mainnet destination is required', () => {
+    expect(() => treasuryAddressToPkh(DEFAULT_BCH_CHIPNET_TREASURY, 'mainnet'))
+      .toThrow(/bitcoincash network prefix/);
+  });
+
+  it('rejects malformed treasury addresses', () => {
+    expect(() => treasuryAddressToPkh('bchtest:not-a-valid-address', 'chipnet')).toThrow(/Invalid treasury address/);
+  });
 });
 
 describe('new BCH circle contribution policy', () => {
