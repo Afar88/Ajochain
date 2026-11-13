@@ -7,7 +7,7 @@ import {
   type SpendableUtxo,
   type Contract,
 } from 'cashscript';
-import { circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
+import { circleContract, STATE_DUST, encodeRound, assertNewBchContribution, type CircleParams, type Net } from '../../src/lib/ajo';
 
 import { ElectrumClient } from '@electrum-cash/network';
 import { ElectrumWebSocket } from '@electrum-cash/web-socket';
@@ -80,6 +80,7 @@ export async function inspectWalletFunding(net: Net, walletAddress: string) {
  * the circle address, is known before anything is signed.
  */
 export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, walletAddress: string) {
+  assertNewBchContribution(base.contribution);
   const prov = await getProvider(base.network);
   const utxos = (await prov.getUtxos(walletAddress)).filter((u) => !u.token);
   const genesisUtxo = utxos.find((u) => u.vout === 0 && u.satoshis >= 3000n);
