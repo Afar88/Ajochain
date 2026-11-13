@@ -12,15 +12,23 @@ export const PUSD_DUST = 1000n;
 export const PUSD_DEFAULT_RESERVE = 20_000n;
 
 /**
- * The published ParyonUSD category is explicitly a Bitcoin Cash mainnet token.
- * A Chipnet transaction must never silently use that category. This guard does
- * not prove an alternative category is PUSD; that must be verified separately.
+ * No independently verified ParyonUSD Chipnet category has been configured.
+ * The published category below is explicitly the mainnet token ID. Keep this
+ * null until a Chipnet category is confirmed from the actual token UTXO/BCMR.
  */
-export function assertPusdCategoryNotMainnetOnChipnet(network: Net, category: string): void {
-  if (network === 'chipnet' && category.toLowerCase() === PUSD_CATEGORY.toLowerCase()) {
-    throw new Error('The configured PUSD category is the published mainnet token ID. PUSD Chipnet transactions are paused until the actual Chipnet category is independently verified.');
+export const PUSD_CHIPNET_CATEGORY: string | null = null;
+
+export function assertPusdCategoryConfiguredForNetwork(network: Net, category: string): void {
+  if (network === 'chipnet') {
+    if (!PUSD_CHIPNET_CATEGORY) {
+      throw new Error('PUSD Chipnet is paused: its token category has not been independently verified and configured.');
+    }
+    if (category.toLowerCase() !== PUSD_CHIPNET_CATEGORY.toLowerCase()) {
+      throw new Error('This is not the verified PUSD Chipnet token category.');
+    }
   }
 }
+
 export type PusdParams = CircleParams & { pusdCategory?: string };
 
 export interface PusdCircleParams {
@@ -107,7 +115,6 @@ export function buildPusdPayout(
   provider: NetworkProvider,
   feeRate = 1,
 ): { builder: TransactionBuilder; fee: bigint; recipient: string; tokenAmount: bigint; round: number } {
-  assertPusdCategoryNotMainnetOnChipnet(p.network, p.pusdCategory ?? PUSD_CATEGORY);
   const s = pusdStatus(p, utxos);
   if (!s.stateUtxo) throw new Error('PUSD circle not started: state NFT not found');
   if (s.completed) throw new Error('PUSD circle is complete');
