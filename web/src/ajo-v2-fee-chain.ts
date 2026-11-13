@@ -163,7 +163,10 @@ export async function planV2FeeDeposit(params: V2FeeCircleParams, memberIndex: n
   const all = await contract.getUtxos();
   assertUtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
-  const receipt = findReceipt(all, params.stateCategory, memberIndex);
+  const allReceipts = params.members.map((_, i) => findReceipt(all, params.stateCategory, i));
+  const allCredits = allReceipts.map(u => v2FeeCreditFromCommitment(u.token!.nft!.commitment));
+  if (state.satoshis !== allCredits.reduce((sum, credit) => sum + credit, STATE_DUST)) throw new Error('State BCH does not match the exact member-credit total. Stop and investigate.');
+  const receipt = allReceipts[memberIndex];
   const fee = feeEstimate(params.members.length);
   if (fee > params.maxFee) throw new Error('The configured maxFee is too low for a safe V2 member deposit.');
   const funding = pickFunding((await provider.getUtxos(walletAddress)).filter(u => !u.token), amount + fee + CHANGE_DUST);
@@ -192,6 +195,7 @@ export async function planV2FeePayout(params: V2FeeCircleParams) {
   if (!Number.isInteger(round) || round < 0 || round >= params.members.length) throw new Error('Invalid V2 fee payout round.');
   const receipts = params.members.map((_, i) => findReceipt(all, params.stateCategory, i));
   const credits = receipts.map(u => v2FeeCreditFromCommitment(u.token!.nft!.commitment));
+  if (state.satoshis !== credits.reduce((sum, credit) => sum + credit, STATE_DUST)) throw new Error('State BCH does not match the exact member-credit total. Stop and investigate.');
   if (credits.some(c => c < params.contribution)) throw new Error('Payout is blocked until every member has one full contribution in their own receipt.');
   const pot = BigInt(params.members.length) * params.contribution;
   const projectFee = pot / 100n;
@@ -262,6 +266,7 @@ export async function readV2FeeCircle(params: V2FeeCircleParams) {
   if (!Number.isInteger(round) || round < 0 || round >= params.members.length) throw new Error('Invalid V2 fee payout round.');
   const receipts = params.members.map((_, i) => findReceipt(utxos, params.stateCategory, i));
   const credits = receipts.map(u => v2FeeCreditFromCommitment(u.token!.nft!.commitment));
+  if (state.satoshis !== credits.reduce((sum, credit) => sum + credit, STATE_DUST)) throw new Error('State BCH does not match the exact member-credit total. Stop and investigate.');
   return {
     contract,
     utxos,
