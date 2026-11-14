@@ -118,8 +118,8 @@ describe('AjoCirclePUSDV2 member escrow covenant', () => {
     addGenesis(provider, contract, escrows);
 
     await deposit(provider, contract, escrows, 0);
-    const { receipts, all } = await current(provider, contract, escrows);
-    const fundedEscrow = all.find(u => u.token?.category === PUSD);
+    const { receipts } = await current(provider, contract, escrows);
+    const fundedEscrow = (await escrows[0].getUtxos()).find(u => u.token?.category === PUSD);
     expect(receipts[0].token!.nft!.commitment).toBe(creditCommitment(0, CONTRIBUTION));
     expect(fundedEscrow?.token?.amount).toBe(CONTRIBUTION);
     expect(fundedEscrow?.satoshis).toBe(2n * DUST);
@@ -127,8 +127,8 @@ describe('AjoCirclePUSDV2 member escrow covenant', () => {
 
   it('rejects PUSD funding from a different registered member', async () => {
     const provider = new MockNetworkProvider();
-    const contract = makeContract(provider);
-    addGenesis(provider, contract);
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
     await expect(deposit(provider, contract, escrows, 0, 1)).rejects.toThrow();
   });
 });
