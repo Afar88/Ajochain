@@ -217,7 +217,7 @@ const decodePusdLink = (s: string): PusdCircleParams => {
       typeof value.pusdCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(value.pusdCategory) ||
       !Array.isArray(value.members) || value.members.length < 2 || value.members.length > 5 ||
       !value.members.every((member: unknown) => typeof member === 'string') ||
-      typeof value.contribution !== 'string' || !/^\\d+$/.test(value.contribution)) {
+      typeof value.contribution !== 'string' || !/^\d+$/.test(value.contribution)) {
     throw new Error('This is not a valid Chipnet PUSD circle link.');
   }
   const p: PusdCircleParams = { ...value, contribution: BigInt(value.contribution) };
