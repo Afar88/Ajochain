@@ -5,9 +5,11 @@ import {
 } from 'cashscript';
 import { encodeCashAddress, hash160, hexToBin, secp256k1 } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCirclePUSDV2.json' with { type: 'json' };
+import escrowArtifactJson from '../contracts/AjoPUSDMemberEscrow.json' with { type: 'json' };
 import { pkhToAddress } from '../src/lib/ajo.js';
 
 const artifact = artifactJson as unknown as Artifact;
+const escrowArtifact = escrowArtifactJson as unknown as Artifact;
 const STATE = 'ab'.repeat(32);
 const PUSD = 'cd'.repeat(32);
 const DUST = 1000n;
@@ -35,15 +37,21 @@ function creditCommitment(index: number, amount: bigint) {
 }
 
 function makeContract(provider: MockNetworkProvider) {
-  return new Contract(artifact, [
+  const escrows = members.map((_, i) => new Contract(escrowArtifact, [
+    hexToBin(STATE).reverse(), hexToBin(PUSD).reverse(), 2n, BigInt(i),
+  ], { provider, contractType: 'p2sh32' }));
+  const contract = new Contract(artifact, [
     members[0].pkh, members[1].pkh,
     new Uint8Array(20), new Uint8Array(20), new Uint8Array(20),
     2n, CONTRIBUTION, MAX_FEE,
     hexToBin(STATE).reverse(), hexToBin(PUSD).reverse(), initiator.pkh,
+    escrows[0].lockingBytecode, escrows[1].lockingBytecode,
+    escrows[0].lockingBytecode, escrows[0].lockingBytecode, escrows[0].lockingBytecode,
   ], { provider, contractType: 'p2sh32' });
+  return { contract, escrows };
 }
 
-function addGenesis(provider: MockNetworkProvider, contract: Contract) {
+function addGenesis(provider: MockNetworkProvider, contract: Contract, escrows: Contract[]) {
   provider.addUtxo(contract.address, randomUtxo({
     satoshis: DUST,
     token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '540000' } },
@@ -53,11 +61,11 @@ function addGenesis(provider: MockNetworkProvider, contract: Contract) {
       satoshis: DUST,
       token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(i, 0n) } },
     }));
-    provider.addUtxo(contract.address, randomUtxo({ satoshis: DUST }));
+    provider.addUtxo(escrows[i].address, randomUtxo({ satoshis: DUST }));
   }
 }
 
-async function current(provider: MockNetworkProvider, contract: Contract) {
+async function current(provider: MockNetworkProvider, contract: Contract, escrows: Contract[]) {
   const all = await contract.getUtxos();
   const state = all.find(u => u.token?.nft?.capability === 'minting') as SpendableUtxo;
   const receipts = members.map((_, i) => all.find(u =>
@@ -66,12 +74,12 @@ async function current(provider: MockNetworkProvider, contract: Contract) {
   // These are the untouched genesis BCH-only escrow placeholders. This helper
   // is used only to construct the first deposit; post-deposit escrow lookup is
   // by token category, never by an order-dependent array index.
-  const emptyEscrows = all.filter(u => !u.token && u.satoshis === DUST) as SpendableUtxo[];
+  const emptyEscrows = await Promise.all(escrows.map(async escrow => (await escrow.getUtxos())[0] as SpendableUtxo));
   return { state, receipts, emptyEscrows, all };
 }
 
-async function deposit(provider: MockNetworkProvider, contract: Contract, index: number, fundingIndex = index) {
-  const { state, receipts, emptyEscrows } = await current(provider, contract);
+async function deposit(provider: MockNetworkProvider, contract: Contract, escrows: Contract[], index: number, fundingIndex = index) {
+  const { state, receipts, emptyEscrows } = await current(provider, contract, escrows);
   const escrow = emptyEscrows[index];
   const memberAddress = tokenAddress(members[fundingIndex].pkh);
   const funding = provider.addUtxo(memberAddress, randomUtxo({
@@ -84,7 +92,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
   const builder = new TransactionBuilder({ provider })
     .addInput(state, unlock)
     .addInput(receipts[index], unlock)
-    .addInput(escrow, unlock)
+    .addInput(escrow, escrows[index].unlock.attest())
     .addInput(funding, members[fundingIndex].sig.unlockP2PKH())
     .addInput(reserve, initiator.sig.unlockP2PKH())
     .addOutput({
@@ -96,7 +104,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
       token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(index, CONTRIBUTION) } },
     })
     .addOutput({
-      to: contract.tokenAddress, amount: escrow.satoshis + funding.satoshis,
+      to: escrows[index].tokenAddress, amount: escrow.satoshis + funding.satoshis,
       token: { category: PUSD, amount: CONTRIBUTION },
     })
     .addOutput({ to: reserveAddress, amount: 15_000n });
@@ -106,11 +114,11 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
 describe('AjoCirclePUSDV2 member escrow covenant', () => {
   it('attributes each deposit to the registered member and preserves token BCH backing', async () => {
     const provider = new MockNetworkProvider();
-    const contract = makeContract(provider);
-    addGenesis(provider, contract);
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
 
-    await deposit(provider, contract, 0);
-    const { receipts, all } = await current(provider, contract);
+    await deposit(provider, contract, escrows, 0);
+    const { receipts, all } = await current(provider, contract, escrows);
     const fundedEscrow = all.find(u => u.token?.category === PUSD);
     expect(receipts[0].token!.nft!.commitment).toBe(creditCommitment(0, CONTRIBUTION));
     expect(fundedEscrow?.token?.amount).toBe(CONTRIBUTION);
@@ -121,6 +129,6 @@ describe('AjoCirclePUSDV2 member escrow covenant', () => {
     const provider = new MockNetworkProvider();
     const contract = makeContract(provider);
     addGenesis(provider, contract);
-    await expect(deposit(provider, contract, 0, 1)).rejects.toThrow();
+    await expect(deposit(provider, contract, escrows, 0, 1)).rejects.toThrow();
   });
 });
