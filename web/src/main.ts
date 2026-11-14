@@ -379,7 +379,7 @@ async function renderV2Circle(encoded: string) {
 const encodeV3Link = (p: V3CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({
   ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString(),
   retentionBps: (p.retentionBps ?? 2000n).toString(),
-})))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+})))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decodeV3Link = (encoded: string): V3CircleParams => {
   if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid ACR v3 circle link.');
   let p: any;
@@ -389,9 +389,9 @@ const decodeV3Link = (encoded: string): V3CircleParams => {
       typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
       !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
       !p.members.every((m: unknown) => typeof m === 'string') ||
-      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
-      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee) ||
-      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\\d+$/.test(p.retentionBps)))) {
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee) ||
+      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
     throw new Error('This is not a valid ACR v3 circle link.');
   }
   const params: V3CircleParams = {
