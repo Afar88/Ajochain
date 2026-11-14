@@ -181,7 +181,6 @@ export async function planPusdV3Deposit(params: PusdV3Params, memberIndex: numbe
   const tokenInputs = selectExactTokenInputs(walletUtxos, amount);
   const tokenBacking = tokenInputs.reduce((sum, u) => sum + u.satoshis, 0n);
   if (tokenBacking < DUST) throw new Error('Selected PUSD inputs do not carry enough BCH dust backing.');
-  const inputCount = 2 + (pool ? 1 : 0) + tokenInputs.length + 1;
   const placeholderFee = params.maxFee;
   const reserve = walletUtxos.filter(u => !u.token && u.satoshis >= 2n * params.maxFee + CHANGE_DUST)
     .sort((a,b) => a.satoshis < b.satoshis ? -1 : 1)[0];
