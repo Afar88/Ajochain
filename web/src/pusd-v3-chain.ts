@@ -44,7 +44,7 @@ function validate(p: PusdV3Draft | PusdV3Params): void {
   const gross = BigInt(p.members.length) * p.contribution;
   const retained = (gross / 10_000n) * rate + ((gross % 10_000n) * rate / 10_000n);
   if (retained <= 0n || retained >= gross) throw new Error('PUSD contribution must be large enough to produce a positive retained amount and payout');
-  if (p.maxFee < 0n || p.maxFee > CASH_INT_MAX || p.maxFee > 100_000_000n) throw new Error('Invalid PUSD circle BCH fee cap');
+  if (p.maxFee < 0n || p.maxFee > CASH_INT_MAX || p.maxFee > gross - retained - DUST) throw new Error('PUSD fee cap must leave at least 1,000 sats for the recipient after retention.');
   const category = categoryFor(p);
   if (!/^[0-9a-f]{64}$/.test(category)) throw new Error('PUSD category must be 32-byte hex');
   if ('stateCategory' in p) {
@@ -53,17 +53,6 @@ function validate(p: PusdV3Draft | PusdV3Params): void {
   }
 }
 function feeEstimate(inputs: number, outputs: number) { return BigInt(10 + inputs * 150 + outputs * 100 + 100); }
-function contractFor(p: PusdV3Params) {
-  validate(p);
-  const pkhs = p.members.map(addressToPkh);
-  while (pkhs.length < 5) pkhs.push(new Uint8Array(20));
-  return new Contract(artifact, [
-    pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4],
-    BigInt(p.members.length), p.contribution, p.maxFee,
-    p.retentionBps ?? DEFAULT_RETENTION_BPS,
-    hexToBin(p.stateCategory).reverse(), hexToBin(categoryFor(p)).reverse(),
-  ] as any, { provider: undefined as any, contractType: 'p2sh32' });
-}
 function receiptCommitment(index: number, credit: bigint) {
   if (!Number.isInteger(index) || index < 0 || index > 4 || credit < 0n || credit > CASH_INT_MAX) throw new Error('Invalid PUSD v3 member credit');
   return '52' + index.toString(16).padStart(2, '0') + credit.toString(16).padStart(16, '0').match(/../g)!.reverse().join('');
@@ -82,7 +71,7 @@ function tokenAddress(memberAddress: string, network: Net) {
 }
 function findState(utxos: SpendableUtxo[], category: string) {
   const matches = utxos.filter(u => u.token?.category.toLowerCase() === category.toLowerCase()
-    && u.token.nft?.capability === 'minting' && /^530[0-4][01]$/.test(u.token.nft.commitment));
+    && u.token.nft?.capability === 'minting' && /^53(?:00|01|02|03|04)(?:00|01)$/.test(u.token.nft.commitment));
   if (matches.length !== 1) throw new Error(matches.length ? 'Duplicate PUSD v3 state NFT; stop and investigate.' : 'PUSD v3 state NFT not found.');
   if (matches[0].token!.amount !== 0n) throw new Error('PUSD v3 state NFT cannot carry fungible tokens.');
   return matches[0];
@@ -136,7 +125,7 @@ export async function planPusdV3Genesis(draft: PusdV3Draft, walletAddress: strin
   validate(draft);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token).sort((a,b) => a.satoshis > b.satoshis ? -1 : 1);
-  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= DUST + BigInt(draft.members.length) * DUST + reserveSats + 546n);
+  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= DUST);
   if (!genesis) throw new Error('PUSD v3 creation needs a funded BCH output #0 for the circle token category and enough BCH for receipts and fee reserve.');
   const params: PusdV3Params = { ...draft, retentionBps: draft.retentionBps ?? DEFAULT_RETENTION_BPS, stateCategory: genesis.txid, pusdCategory: categoryFor(draft) };
   const pkhs = params.members.map(addressToPkh);
