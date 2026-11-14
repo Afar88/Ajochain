@@ -109,4 +109,45 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
     expect(after.some(u => u.token?.category === PUSD && u.token.amount === C)).toBe(true);
   });
 
+
+  it('adds later member deposits to the existing pool without losing token backing', async () => {
+    const provider = new MockNetworkProvider();
+    const contract = contractFor(provider);
+    const regular = (encodeCashAddress({ prefix: 'bchtest', type: 'p2pkh', payload: members[1].pkh }) as any).address;
+    const tokenAddr = (encodeCashAddress({ prefix: 'bchtest', type: 'p2pkhWithTokens', payload: members[1].pkh }) as any).address;
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: 1_000n,
+      token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '530001' } },
+    }));
+    provider.addUtxo(contract.address, randomUtxo({
+      satoshis: 1_000n,
+      token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(1, 0n) } },
+    }));
+    provider.addUtxo(contract.address, randomUtxo({ satoshis: 1_000n, token: { category: PUSD, amount: C } }));
+    provider.addUtxo(tokenAddr, randomUtxo({ satoshis: 1_000n, token: { category: PUSD, amount: C } }));
+    provider.addUtxo(regular, randomUtxo({ satoshis: 20_000n }));
+
+    const all = await contract.getUtxos();
+    const state = all.find(u => u.token?.nft?.capability === 'minting')!;
+    const rec = all.find(u => u.token?.nft?.commitment === receipt(1, 0n))!;
+    const pool = all.find(u => u.token?.category === PUSD)!;
+    const tokenInput = (await provider.getUtxos(tokenAddr)).find(u => u.token?.category === PUSD)!;
+    const reserve = (await provider.getUtxos(regular)).find(u => !u.token)!;
+    const builder = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.addCredit(1n, C, true))
+      .addInput(rec, contract.unlock.addCredit(1n, C, true))
+      .addInput(pool, contract.unlock.addCredit(1n, C, true))
+      .addInput(tokenInput, members[1].sig.unlockP2PKH())
+      .addInput(reserve, members[1].sig.unlockP2PKH())
+      .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '530001' } } })
+      .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(1, C) } } })
+      .addOutput({ to: contract.tokenAddress, amount: 2_000n, token: { category: PUSD, amount: 2n * C } })
+      .addOutput({ to: contract.address, amount: 10_000n });
+    await builder.send();
+
+    const after = await contract.getUtxos();
+    expect(after.some(u => u.token?.category === PUSD && u.token.amount === 2n * C && u.satoshis === 2_000n)).toBe(true);
+    expect(after.some(u => u.token?.nft?.commitment === receipt(1, C))).toBe(true);
+  });
+
 });
