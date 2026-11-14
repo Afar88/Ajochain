@@ -31,7 +31,12 @@ contract AjoCirclePUSDV2(
     int maxFee,
     bytes32 stateCategory,
     bytes32 pusdCategory,
-    bytes20 initiator
+    bytes20 initiator,
+    bytes escrowLock0,
+    bytes escrowLock1,
+    bytes escrowLock2,
+    bytes escrowLock3,
+    bytes escrowLock4
 ) {
     function deposit(int memberIndex, int amount) {
         require(memberCount >= 2 && memberCount <= 5);
@@ -64,11 +69,13 @@ contract AjoCirclePUSDV2(
         require(oldCredit >= 0 && oldCredit <= 9223372036854775807 - amount);
 
         bytes20 member = m0;
-        if (memberIndex == 1) { member = m1; }
-        if (memberIndex == 2) { member = m2; }
-        if (memberIndex == 3) { member = m3; }
-        if (memberIndex == 4) { member = m4; }
+        bytes memberEscrowLock = escrowLock0;
+        if (memberIndex == 1) { member = m1; memberEscrowLock = escrowLock1; }
+        if (memberIndex == 2) { member = m2; memberEscrowLock = escrowLock2; }
+        if (memberIndex == 3) { member = m3; memberEscrowLock = escrowLock3; }
+        if (memberIndex == 4) { member = m4; memberEscrowLock = escrowLock4; }
 
+        require(tx.inputs[2].lockingBytecode == memberEscrowLock);
         require(tx.inputs[2].tokenCategory == 0x || tx.inputs[2].tokenCategory == pusdCategory);
         require(tx.inputs[2].tokenAmount == oldCredit);
         require(tx.inputs[2].nftCommitment == 0x);
@@ -137,6 +144,12 @@ contract AjoCirclePUSDV2(
             require(receiptMember.length == 1 && int(receiptMember) == i);
             require(receiptCredit.length == 8);
             int credit = int(receiptCredit);
+            bytes memberEscrowLock = escrowLock0;
+            if (i == 1) { memberEscrowLock = escrowLock1; }
+            if (i == 2) { memberEscrowLock = escrowLock2; }
+            if (i == 3) { memberEscrowLock = escrowLock3; }
+            if (i == 4) { memberEscrowLock = escrowLock4; }
+            require(tx.inputs[escrowInput].lockingBytecode == memberEscrowLock);
             require(credit >= contribution && credit <= 9223372036854775807 - totalCredits);
             totalCredits = totalCredits + credit;
             require(tx.inputs[escrowInput].tokenCategory == pusdCategory);
