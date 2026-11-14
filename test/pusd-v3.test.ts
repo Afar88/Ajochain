@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Contract, MockNetworkProvider, TransactionBuilder, randomUtxo, type Artifact } from 'cashscript';
 import { hexToBin } from '@bitauth/libauth';
+import { pkhToAddress } from '../src/lib/ajo.js';
 import artifactJson from '../contracts/AjoCirclePUSDV3.json' with { type: 'json' };
 
 const artifact = artifactJson as unknown as Artifact;
@@ -9,7 +10,6 @@ const PUSD = 'de'.repeat(32);
 const C = 100_000n;
 const MAX_FEE = 10_000n;
 const RETENTION_BPS = 2_000n;
-const lock = 'test';
 const members = [new Uint8Array(20).fill(1), new Uint8Array(20).fill(2)];
 
 function contractFor(provider: MockNetworkProvider) {
@@ -61,7 +61,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '530101' } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(0, 90_000n) } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(1, 0n) } } })
-      .addOutput({ to: contract.address, amount: 1_000n, token: { category: PUSD, amount: 160_000n } })
+      .addOutput({ to: pkhToAddress(members[0], 'chipnet'), amount: 1_000n, token: { category: PUSD, amount: 160_000n } })
       .addOutput({ to: contract.tokenAddress, amount: 2_000n, token: { category: PUSD, amount: 90_000n } })
       .addOutput({ to: contract.address, amount: 10_000n });
     await builder.send();
