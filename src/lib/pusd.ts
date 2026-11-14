@@ -90,7 +90,7 @@ export interface PusdStatus {
 
 export function pusdStatus(p: PusdCircleParams, utxos: SpendableUtxo[]): PusdStatus {
   validatePusdParams(p);
-  const category = categoryFor(p)
+  const category = categoryFor(p);
   const stateUtxo = utxos.find(u => isPusdStateUtxo(u, p.stateCategory));
   const tokenUtxos = utxos.filter(u => isPusdUtxo(u, category));
   const reserveUtxos = utxos.filter(u => !u.token && u.satoshis >= PUSD_DUST);
@@ -119,7 +119,7 @@ export function buildPusdPayout(
   if (s.available < s.required) throw new Error(`PUSD pot not full: ${s.available} of ${s.required} base units`);
   if (!s.reserveUtxos.length) throw new Error('A token-free BCH fee reserve is required');
   const round = s.round ?? 0;
-  const category = p.pusdCategory ?? PUSD_CATEGORY;
+  const category = categoryFor(p);
   const tokenInputs = s.tokenUtxos;
   const tokenBacking = tokenInputs.reduce((sum,u)=>sum+u.satoshis,0n);
   const tokenTotal = s.available;
