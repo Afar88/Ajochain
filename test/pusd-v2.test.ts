@@ -63,15 +63,16 @@ async function current(provider: MockNetworkProvider, contract: Contract) {
   const receipts = members.map((_, i) => all.find(u =>
     u.token?.nft?.commitment?.startsWith('52' + i.toString(16).padStart(2, '0')),
   ) as SpendableUtxo);
-  const escrows = members.map((_, i) => {
-    const matching = all.filter(u => u.token?.category === PUSD || (!u.token && u.satoshis === DUST));
-    return matching[i] as SpendableUtxo;
-  });
-  return { state, receipts, escrows, all };
+  // These are the untouched genesis BCH-only escrow placeholders. This helper
+  // is used only to construct the first deposit; post-deposit escrow lookup is
+  // by token category, never by an order-dependent array index.
+  const emptyEscrows = all.filter(u => !u.token && u.satoshis === DUST) as SpendableUtxo[];
+  return { state, receipts, emptyEscrows, all };
 }
 
 async function deposit(provider: MockNetworkProvider, contract: Contract, index: number, fundingIndex = index) {
-  const { state, receipts, escrows } = await current(provider, contract);
+  const { state, receipts, emptyEscrows } = await current(provider, contract);
+  const escrow = emptyEscrows[index];
   const memberAddress = tokenAddress(members[fundingIndex].pkh);
   const funding = provider.addUtxo(memberAddress, randomUtxo({
     satoshis: DUST,
@@ -83,7 +84,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
   const builder = new TransactionBuilder({ provider })
     .addInput(state, unlock)
     .addInput(receipts[index], unlock)
-    .addInput(escrows[index], unlock)
+    .addInput(escrow, unlock)
     .addInput(funding, members[fundingIndex].sig.unlockP2PKH())
     .addInput(reserve, initiator.sig.unlockP2PKH())
     .addOutput({
@@ -95,10 +96,10 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
       token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(index, CONTRIBUTION) } },
     })
     .addOutput({
-      to: contract.tokenAddress, amount: escrows[index].satoshis + funding.satoshis,
+      to: contract.tokenAddress, amount: escrow.satoshis + funding.satoshis,
       token: { category: PUSD, amount: CONTRIBUTION },
     })
-    .addOutput({ to: reserveAddress, amount: 19_000n });
+    .addOutput({ to: reserveAddress, amount: 18_000n });
   await builder.send();
 }
 
@@ -109,10 +110,11 @@ describe('AjoCirclePUSDV2 member escrow covenant', () => {
     addGenesis(provider, contract);
 
     await deposit(provider, contract, 0);
-    const { receipts, escrows } = await current(provider, contract);
+    const { receipts, all } = await current(provider, contract);
+    const fundedEscrow = all.find(u => u.token?.category === PUSD);
     expect(receipts[0].token!.nft!.commitment).toBe(creditCommitment(0, CONTRIBUTION));
-    expect(escrows[0].token!.amount).toBe(CONTRIBUTION);
-    expect(escrows[0].satoshis).toBe(2n * DUST);
+    expect(fundedEscrow?.token?.amount).toBe(CONTRIBUTION);
+    expect(fundedEscrow?.satoshis).toBe(2n * DUST);
   });
 
   it('rejects PUSD funding from a different registered member', async () => {
