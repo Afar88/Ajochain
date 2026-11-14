@@ -431,7 +431,7 @@ function renderV3Create() {
       const raw = Number(fd.get('amount'));
       if (!Number.isFinite(raw) || raw <= 0 || raw * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH contribution amount.');
       const rate = Number(fd.get('retention'));
-      if (!Number.isFinite(rate) || rate < 0 || rate > 50) throw new Error('Retention must be between 0% and 50%.');
+      if (!Number.isFinite(rate) || rate <= 0 || rate > 50) throw new Error('PUSD retention must be greater than 0% and at most 50%.');
       const draft = { version: 3 as const, name: String(fd.get('name')).trim(), network, members,
         contribution: BigInt(Math.round(raw * 1e8)), maxFee: BigInt(String(fd.get('fee') || '0')),
         retentionBps: BigInt(Math.round(rate * 100)) };
@@ -521,7 +521,7 @@ const decodePusdV3Link = (encoded: string): PusdV3Params => {
   const params: PusdV3Params = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee), retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps) };
   const gross = BigInt(params.members.length) * params.contribution;
   const retained = gross * params.retentionBps! / 10_000n;
-  if (params.contribution <= 0n || params.retentionBps! < 0n || params.retentionBps! > 5000n || retained < 0n || retained >= gross || params.maxFee > gross - retained - 1000n) {
+  if (params.contribution <= 0n || params.retentionBps! < 0n || params.retentionBps! > 5000n || retained <= 0n || retained >= gross || params.maxFee > gross - retained - 1000n) {
     throw new Error('PUSD ACR v3 link contains invalid contribution, retention or fee limits.');
   }
   const keys = params.members.map(a => Array.from(addressToPkh(a)).join(','));
@@ -539,7 +539,7 @@ function renderPusdV3Create() {
   let configError = '';
   try { category = configuredPusdCategory('chipnet'); } catch (e: any) { configError = String(e.message || e); }
   const addr = wallet.state === 'connected' ? wallet.address(network) : null;
-  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until the Chipnet token category is independently verified and configured.</p>` : `<p class="small muted">Verified PUSD category: <code>${esc(category)}</code></p>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0" max="50" step="0.01" value="20" required/></label><label>BCH reserve top-up and maximum miner fee (sats)<input name="fee" type="number" min="5000" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until the Chipnet token category is independently verified and configured.</p>` : `<p class="small muted">Verified PUSD category: <code>${esc(category)}</code></p>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0.01" max="50" step="0.01" value="20" required/></label><label>BCH reserve top-up and maximum miner fee (sats)<input name="fee" type="number" min="5000" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
   $('#pv3add').onclick = () => { const el = $('#pv3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
   $<HTMLFormElement>('#pv3f').onsubmit = async ev => {
     ev.preventDefault(); const err = $('#pv3err'); err.textContent = '';
