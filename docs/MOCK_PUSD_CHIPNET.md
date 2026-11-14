@@ -19,13 +19,15 @@ tPUSD is a locally issued, test-only CashToken for exercising AjoChain's PUSD AC
 4. Select **Create tPUSD on Chipnet**.
 5. Approve the first transaction. It creates a normal BCH output at index 0, which acts as the CashToken genesis anchor.
 6. Approve the second transaction. It spends that anchor and creates the fixed tPUSD supply.
-7. AjoChain checks the token output on Chipnet and stores its category ID in this browser.
+7. AjoChain checks the token output on Chipnet and stores its category ID in this browser. Share that category ID with the other test participants.
 
 CashToken categories are derived from an eligible output-zero outpoint spent by the token genesis transaction. The app deliberately uses a separate anchor transaction before issuing tPUSD.
 
 ## Use it with ACR v3
 
-After the category is created and verified in this browser:
+Each additional tester should open Test Token Tools, paste the issuer's exact 64-character category ID into **Import a tester category from the issuer**, and select **Use existing tPUSD category**. This sets the same category locally; it does not mint tokens or verify that the issuer is trustworthy.
+
+After the category is configured in each browser:
 
 1. Open **PUSD ACR v3**.
 2. Create a Chipnet circle using the configured tPUSD category.
@@ -33,7 +35,7 @@ After the category is created and verified in this browser:
 4. Each member deposits the exact contribution into their own on-chain credit.
 5. Once every member has enough credit, test payout, the default 20% retention, and rollover.
 
-The token supply is initially held by the issuer wallet. Transfer test units to member wallets using a CashTokens-compatible wallet. The app does not provide a hosted faucet or custody user tokens.
+The token supply is initially held by the issuer wallet. Transfer test units to member wallets using a CashTokens-compatible wallet. The token issuer should share enough units with each member before the circle starts. The app does not provide a hosted faucet or custody user tokens.
 
 ## Category configuration and isolation
 
