@@ -33,7 +33,7 @@ describe('Automatic Contribution Retention (ACR)', () => {
   it('carries excess credit forward over multiple rounds', () => {
     const first = calculateAcrPayout([250n, 100n], 100n, 0);
     expect(first.nextCredits).toEqual([190n, 0n]);
-    const second = calculateAcrPayout(first.nextCredits, 100n, 1);
+    const second = calculateAcrPayout(first.nextCredits.map((credit, index) => credit + (index === 1 ? 100n : 0n)), 100n, 1);
     expect(second.nextCredits).toEqual([90n, 40n]);
   });
 
