@@ -178,11 +178,11 @@ export async function planPusdV3Deposit(params: PusdV3Params, memberIndex: numbe
   const tokenInputs = selectExactTokenInputs(walletUtxos, amount);
   const tokenBacking = tokenInputs.reduce((sum, u) => sum + u.satoshis, 0n);
   if (tokenBacking < DUST) throw new Error('Selected PUSD inputs do not carry enough BCH dust backing.');
-  const reserve = walletUtxos.filter(u => !u.token).sort((a,b) => a.satoshis > b.satoshis ? -1 : 1)[0];
-  if (!reserve) throw new Error('A separate BCH input is required to fund the PUSD transaction fee and circle reserve.');
   const inputCount = 2 + (pool ? 1 : 0) + tokenInputs.length + 1;
-  const fee = feeEstimate(inputCount, 4);
-  if (fee > params.maxFee || reserve.satoshis < fee + DUST) throw new Error('Member BCH input cannot cover the transaction fee and minimum reserve output.');
+  const fee = feeEstimate(inputCount, 5);
+  const reserve = walletUtxos.filter(u => !u.token && u.satoshis >= params.maxFee + fee + CHANGE_DUST).sort((a,b) => a.satoshis < b.satoshis ? -1 : 1)[0];
+  if (!reserve) throw new Error('A separate BCH input must cover the configured reserve top-up, miner fee and member change.');
+  if (fee > params.maxFee) throw new Error('Estimated miner fee exceeds the configured maximum.');
   const oldCredit = creditFrom(receipts[memberIndex].token!.nft!.commitment);
   if (oldCredit > CASH_INT_MAX - amount) throw new Error('PUSD member credit would overflow.');
   const b = new TransactionBuilder({ provider })
@@ -194,8 +194,9 @@ export async function planPusdV3Deposit(params: PusdV3Params, memberIndex: numbe
   b.addOutput({ to: contract.tokenAddress, amount: state.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '53' + state.token!.nft!.commitment.slice(2, 4) + '01' } } });
   b.addOutput({ to: contract.tokenAddress, amount: receipts[memberIndex].satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(memberIndex, oldCredit + amount) } } });
   b.addOutput({ to: contract.tokenAddress, amount: (pool?.satoshis ?? 0n) + tokenBacking, token: { category: categoryFor(params), amount: (pool?.token?.amount ?? 0n) + amount } });
-  b.addOutput({ to: contract.address, amount: reserve.satoshis - fee });
-  const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Add ${amount.toString()} PUSD to your ACR v3 member credit` });
+  b.addOutput({ to: contract.address, amount: params.maxFee });
+  b.addOutput({ to: walletAddress, amount: reserve.satoshis - params.maxFee - fee });
+  const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Add ${amount.toString()} PUSD to your ACR v3 member credit and top up the circle BCH fee reserve` });
   return { wc, walletInputs: Array.from({ length: tokenInputs.length + 1 }, (_, i) => (pool ? 3 : 2) + i), credited: amount, newCredit: oldCredit + amount, fee };
 }
 
