@@ -235,20 +235,27 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   const recipientTokenAmount = grossPayout - retained;
   const poolAfter = totalCredits - grossPayout + retained;
   if (poolAfter <= 0n) throw new Error('ACR rollover pool must remain positive.');
-  const b = new TransactionBuilder({ provider })
-    .addInput(state, contract.unlock.payout())
-    .addInputs(receipts, contract.unlock.payout())
-    .addInput(pool, contract.unlock.payout())
-    .addInput(reserve, contract.unlock.payout())
-    .addOutput({ to: contract.tokenAddress, amount: state.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '53' + ((round + 1) % params.members.length).toString(16).padStart(2, '0') + '01' } } });
-  receipts.forEach((r, i) => {
-    const next = credits[i] - params.contribution + (i === round ? retained : 0n);
-    b.addOutput({ to: contract.tokenAddress, amount: r.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(i, next) } } });
-  });
-  b.addOutput({ to: tokenAddress(params.members[round], params.network), amount: DUST, token: { category: categoryFor(params), amount: recipientTokenAmount } });
-  b.addOutput({ to: contract.tokenAddress, amount: pool.satoshis - DUST, token: { category: categoryFor(params), amount: poolAfter } });
-  b.addOutput({ to: contract.address, amount: reserve.satoshis - fee });
-  return { builder: b, round, recipient: params.members[round], grossPayout, retained, retentionBps, payout: recipientTokenAmount, fee, credits: receipts.map((_, i) => credits[i] - params.contribution + (i === round ? retained : 0n)) };
+  const make = (fee: bigint) => {
+    const b = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.payout())
+      .addInputs(receipts, contract.unlock.payout())
+      .addInput(pool, contract.unlock.payout())
+      .addInput(reserve, contract.unlock.payout())
+      .addOutput({ to: contract.tokenAddress, amount: state.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '53' + ((round + 1) % params.members.length).toString(16).padStart(2, '0') + '01' } } });
+    receipts.forEach((r, i) => {
+      const next = credits[i] - params.contribution + (i === round ? retained : 0n);
+      b.addOutput({ to: contract.tokenAddress, amount: r.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(i, next) } } });
+    });
+    b.addOutput({ to: tokenAddress(params.members[round], params.network), amount: DUST, token: { category: categoryFor(params), amount: recipientTokenAmount } });
+    b.addOutput({ to: contract.tokenAddress, amount: pool.satoshis - DUST, token: { category: categoryFor(params), amount: poolAfter } });
+    b.addOutput({ to: contract.address, amount: reserve.satoshis - fee });
+    return b;
+  };
+  const draft = make(1n).build();
+  const fee = BigInt(Math.ceil(draft.length / 2)) + 10n;
+  if (fee > params.maxFee || reserve.satoshis - fee < DUST) throw new Error('PUSD payout fee exceeds the configured maxFee or available BCH reserve.');
+  const builder = make(fee);
+  return { builder, round, recipient: params.members[round], grossPayout, retained, retentionBps, payout: recipientTokenAmount, fee, credits: receipts.map((_, i) => credits[i] - params.contribution + (i === round ? retained : 0n)) };
 }
 
 
