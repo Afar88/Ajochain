@@ -102,6 +102,9 @@ function assertStateSet(utxos: SpendableUtxo[], p: PusdV3Params) {
   if (poolFlag !== '00' && poolFlag !== '01') throw new Error('Invalid PUSD v3 pool initialization flag.');
   const pools = utxos.filter(u => u.token?.category.toLowerCase() === categoryFor(p));
   if (pools.length !== (pool ? 1 : 0)) throw new Error('Unexpected or duplicate PUSD token output at the circle address.');
+  const receiptTotal = receipts.reduce((sum, receipt) => sum + creditFrom(receipt.token!.nft!.commitment), 0n);
+  if (pool && pool.token!.amount !== receiptTotal) throw new Error('PUSD pool amount does not equal the sum of member receipt credits.');
+  if (!pool && receiptTotal !== 0n) throw new Error('Member receipts show credit but the PUSD pool is missing.');
   return { state, receipts, pool };
 }
 function selectExactTokenInputs(utxos: SpendableUtxo[], amount: bigint): SpendableUtxo[] {
