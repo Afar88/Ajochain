@@ -206,6 +206,8 @@ export async function readV3Circle(params: V3CircleParams) {
   if (round < 0 || round >= params.members.length) throw new Error('Invalid v3 payout round.');
   const receipts = params.members.map((_, index) => findReceipt(utxos, params.stateCategory, index));
   const credits = receipts.map(receipt => v3CreditFromCommitment(receipt.token!.nft!.commitment));
+  const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
+  if (state.satoshis < totalCredits + STATE_DUST) throw new Error('BCH state reserve is below the member-credit ledger. Stop and investigate before spending.');
   return {
     contract,
     utxos,
