@@ -141,7 +141,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, escrows
     .addOutput({ to: escrows[0].address, amount: escrowUtxos[0].satoshis })
     .addOutput({ to: escrows[1].address, amount: escrowUtxos[1].satoshis })
     .addOutput({
-      to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST,
+      to: tokenAddress(members[0].pkh), amount: DUST,
       token: { category: PUSD, amount: 2n * CONTRIBUTION },
     })
     .addOutput({ to: reserveAddress, amount: 15_000n });
