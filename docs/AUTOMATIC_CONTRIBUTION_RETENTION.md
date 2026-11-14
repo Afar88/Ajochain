@@ -4,7 +4,7 @@ Status: Chipnet implementation branch. BCH ACR v3 and PUSD ACR v3 covenant sourc
 
 ## Product rule
 
-New ACR-enabled circles default to **20% retention (2,000 basis points)**. The rate is agreed by every member at circle creation and committed to the circle's immutable contract parameters. A circle may choose another rate from 0% to 50%; the chosen rate cannot change after creation.
+New ACR-enabled circles default to **20% retention (2,000 basis points)**. The rate is agreed by every member at circle creation and committed to the circle's immutable contract parameters. BCH circles may choose 0% to 50%. PUSD circles require a positive rate (greater than 0% and at most 50%) so the member-credit pool remains represented by a spendable CashToken UTXO. The chosen rate cannot change after creation.
 
 ACR is asset-unit agnostic:
 - BCH uses satoshis.
