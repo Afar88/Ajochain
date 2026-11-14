@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "AjoChain: rotating savings circles (Ajo/Esusu) enforced by a Bitcoin Cash covenant",
   "scripts": {
-    "compile": "cashc contracts/AjoCircle.cash -o contracts/AjoCircle.json && cashc contracts/AjoCirclePUSD.cash -o contracts/AjoCirclePUSD.json && cashc contracts/AjoCircleV2.cash -o contracts/AjoCircleV2.json && cashc contracts/AjoCircleV2Fee.cash -o contracts/AjoCircleV2Fee.json && cashc contracts/AjoCirclePUSDV2.cash -o contracts/AjoCirclePUSDV2.json",
+    "compile": "cashc contracts/AjoCircle.cash -o contracts/AjoCircle.json && cashc contracts/AjoCirclePUSD.cash -o contracts/AjoCirclePUSD.json && cashc contracts/AjoCircleV2.cash -o contracts/AjoCircleV2.json && cashc contracts/AjoCircleV2Fee.cash -o contracts/AjoCircleV2Fee.json && cashc contracts/AjoCirclePUSDV2.cash -o contracts/AjoCirclePUSDV2.json && cashc contracts/AjoPUSDMemberEscrow.cash -o contracts/AjoPUSDMemberEscrow.json",
     "test": "cashc contracts/AjoCirclePUSD.cash -o contracts/AjoCirclePUSD.json && cashc contracts/AjoCircleV2.cash -o contracts/AjoCircleV2.json && cashc contracts/AjoCircleV2Fee.cash -o contracts/AjoCircleV2Fee.json && cashc contracts/AjoCirclePUSDV2.cash -o contracts/AjoCirclePUSDV2.json && vitest run",
     "dev": "vite",
     "build": "vite build",
