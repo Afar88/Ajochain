@@ -13,7 +13,7 @@ import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
-import { planMockPusdAnchor, planMockPusdGenesis, planMockPusdTransfer, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS } from './mock-pusd';
+import { planMockPusdAnchor, planMockPusdGenesis, planMockPusdTransfer, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, parseMockPusdAmount } from './mock-pusd';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -633,10 +633,7 @@ function renderMockPusdTools() {
       const form = new FormData($<HTMLFormElement>('#sendMockPusd'));
       const recipient = String(form.get('recipient') || '').trim();
       const amountText = String(form.get('amount') || '').trim();
-      if (!/^\\d+(?:\\.\\d{1,6})?$/.test(amountText)) throw new Error('Enter a valid amount with up to 6 decimal places.');
-      const [whole, fraction = ''] = amountText.split('.');
-      const amount = BigInt(whole) * 1_000_000n + BigInt((fraction + '000000').slice(0, 6));
-      if (amount <= 0n) throw new Error('Transfer amount must be greater than zero.');
+      const amount = parseMockPusdAmount(amountText);
       const submit = $<HTMLButtonElement>('#sendMockPusd button[type=submit]');
       submit.disabled = true;
       error.textContent = 'Preparing tPUSD transfer…';
