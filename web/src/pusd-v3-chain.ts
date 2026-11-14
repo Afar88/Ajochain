@@ -182,10 +182,10 @@ export async function planPusdV3Deposit(params: PusdV3Params, memberIndex: numbe
   const tokenBacking = tokenInputs.reduce((sum, u) => sum + u.satoshis, 0n);
   if (tokenBacking < DUST) throw new Error('Selected PUSD inputs do not carry enough BCH dust backing.');
   const inputCount = 2 + (pool ? 1 : 0) + tokenInputs.length + 1;
-  const roughFee = feeEstimate(inputCount, 5);
-  const reserve = walletUtxos.filter(u => !u.token && u.satoshis >= params.maxFee + roughFee + CHANGE_DUST)
+  const placeholderFee = params.maxFee;
+  const reserve = walletUtxos.filter(u => !u.token && u.satoshis >= 2n * params.maxFee + CHANGE_DUST)
     .sort((a,b) => a.satoshis < b.satoshis ? -1 : 1)[0];
-  if (!reserve) throw new Error('A separate BCH input must cover the configured reserve top-up, miner fee and member change.');
+  if (!reserve) throw new Error('A separate BCH input must cover the reserve top-up, a fee-estimation placeholder, and member change.');
   const oldCredit = creditFrom(receipts[memberIndex].token!.nft!.commitment);
   if (oldCredit > CASH_INT_MAX - amount) throw new Error('PUSD member credit would overflow.');
   const make = (fee: bigint) => {
@@ -202,7 +202,7 @@ export async function planPusdV3Deposit(params: PusdV3Params, memberIndex: numbe
     b.addOutput({ to: walletAddress, amount: reserve.satoshis - params.maxFee - fee });
     return b;
   };
-  const draft = make(1n).build();
+  const draft = make(placeholderFee).build();
   const fee = BigInt(Math.ceil(draft.length / 2)) + 10n;
   if (fee > params.maxFee || reserve.satoshis < params.maxFee + fee + CHANGE_DUST) {
     throw new Error('The actual serialized PUSD deposit fee exceeds the configured cap or the selected BCH input cannot cover the reserve top-up and change.');
@@ -236,7 +236,7 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   const retained = (grossPayout / 10_000n) * retentionBps + ((grossPayout % 10_000n) * retentionBps / 10_000n);
   if (retained <= 0n || retained >= grossPayout) throw new Error('ACR retention leaves no valid PUSD payout at this contribution size.');
   if (pool.satoshis < 2n * DUST) throw new Error('PUSD pool does not contain enough BCH backing for recipient and rollover outputs.');
-  const reserve = all.filter(u => !u.token && u.satoshis >= DUST + feeEstimate(params.members.length + 3, params.members.length + 4))
+  const reserve = all.filter(u => !u.token && u.satoshis >= DUST + params.maxFee)
     .sort((a,b) => a.satoshis > b.satoshis ? -1 : 1)[0];
   if (!reserve) throw new Error('PUSD circle fee reserve is insufficient for payout.');
   const fee = feeEstimate(params.members.length + 3, params.members.length + 4);
@@ -260,7 +260,7 @@ export async function planPusdV3Payout(params: PusdV3Params) {
     b.addOutput({ to: contract.address, amount: reserve.satoshis - fee });
     return b;
   };
-  const draft = make(1n).build();
+  const draft = make(params.maxFee).build();
   const fee = BigInt(Math.ceil(draft.length / 2)) + 10n;
   if (fee > params.maxFee || reserve.satoshis - fee < DUST) throw new Error('PUSD payout fee exceeds the configured maxFee or available BCH reserve.');
   const builder = make(fee);
