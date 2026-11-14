@@ -403,7 +403,7 @@ const decodeV3Link = (encoded: string): V3CircleParams => {
   const gross = BigInt(params.members.length) * params.contribution;
   const retained = gross * (params.retentionBps ?? 2000n) / 10_000n;
   if (params.contribution < 1000n || params.maxFee < 0n || params.retentionBps! < 0n ||
-      params.retentionBps! > 5000n || params.maxFee < 1000n || params.maxFee > 100_000_000n) {
+      params.retentionBps! > 5000n || params.maxFee < 5000n || params.maxFee > 100_000_000n) {
     throw new Error('This ACR v3 link contains invalid contribution, retention or fee limits.');
   }
   const memberKeys = params.members.map(address => Array.from(addressToPkh(address)).join(','));
