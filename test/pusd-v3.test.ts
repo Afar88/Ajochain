@@ -126,7 +126,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
     }));
     provider.addUtxo(contract.address, randomUtxo({ satoshis: 1_000n, token: { category: PUSD, amount: C } }));
     provider.addUtxo(tokenAddr, randomUtxo({ satoshis: 1_000n, token: { category: PUSD, amount: C } }));
-    provider.addUtxo(regular, randomUtxo({ satoshis: 30_000n }));
+    provider.addUtxo(regular, randomUtxo({ satoshis: 27_000n }));
 
     const all = await contract.getUtxos();
     const state = all.find(u => u.token?.nft?.capability === 'minting')!;
