@@ -77,7 +77,7 @@ contract AjoCircleV3(
         int round = int(stateRound);
         require(round >= 0 && round < memberCount);
         int pot = memberCount * contribution;
-        int retained = pot * retentionBps / 10000;
+        int retained = (pot / 10000) * retentionBps + ((pot % 10000) * retentionBps / 10000);
         require(retained >= 0 && retained <= pot);
         for (int i = 0; i < memberCount; i++) {
             int receiptInput = i + 1;
