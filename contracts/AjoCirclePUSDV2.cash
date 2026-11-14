@@ -1,8 +1,9 @@
 pragma cashscript ^0.14.0;
 
 // PUSD V2 member-credit covenant prototype.
-// Each member has a receipt NFT and a matching PUSD escrow UTXO at this
-// covenant. PUSD token inputs are accepted only from that member's registered
+// Each member has a receipt NFT at this circle covenant and a matching PUSD
+// escrow UTXO at a distinct member-specific sidecar covenant. The sidecar lock
+// bytecode is pinned in this circle's constructor. PUSD token inputs are accepted only from that member's registered
 // token-aware P2PKH address. The token-free BCH reserve pays miner fees and
 // supplies the dust backing for the single payout token output.
 //
