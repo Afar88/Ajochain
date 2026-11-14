@@ -668,7 +668,7 @@ function route() {
   if (h === '#/v3/create') return renderV3Create();
   if (h.startsWith('#/v3/')) return renderV3Circle(h.slice(5));
   if (h === '#/v2/create') return renderV2Create();
-  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(4));
+  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(5));
   if (h.startsWith('#/mine')) return renderMine();
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();
