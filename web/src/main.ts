@@ -244,7 +244,7 @@ function renderPusdCreate() {
 function savePusdCircle(p: PusdCircleParams) { const list: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]'); const e = encodePusdLink(p); if (!list.includes(e)) list.unshift(e); localStorage.setItem('ajo-pusd-circles', JSON.stringify(list.slice(0, 20))); }
 
 async function renderPusdCircle(encoded: string) {
-  let p: PusdCircleParams; try { p = decodePusdLink(encoded); } catch { app.innerHTML = '<section class="card"><p class="err">Invalid PUSD circle link.</p></section>'; return; }
+  let p: PusdCircleParams; try { p = decodePusdLink(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
   // Decode and validate the untrusted invite before saving it or changing networks.
   if (p.network !== network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
   if (p.network === 'mainnet') { app.innerHTML = `<section class="card"><span class="tag gold">Experimental</span><h2>${esc(p.name)}</h2><div class="note"><b>PUSD Mainnet is not enabled.</b> This circle was created with an unsupported network setting. Switch to Chipnet or use a verified PUSD Mainnet deployment.</div><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
