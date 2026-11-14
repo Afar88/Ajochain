@@ -47,7 +47,6 @@ contract AjoCirclePUSDV2(
         require(tx.inputs.length == 5 && tx.outputs.length == 4);
 
         require(tx.inputs[0].lockingBytecode == tx.inputs[1].lockingBytecode);
-        require(tx.inputs[0].lockingBytecode == tx.inputs[2].lockingBytecode);
         require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
         require(tx.inputs[0].tokenAmount == 0);
         require(tx.inputs[1].tokenCategory == stateCategory);
@@ -135,7 +134,6 @@ contract AjoCirclePUSDV2(
             int receiptInput = i + 1;
             int escrowInput = memberCount + i + 1;
             require(tx.inputs[receiptInput].lockingBytecode == tx.inputs[0].lockingBytecode);
-            require(tx.inputs[escrowInput].lockingBytecode == tx.inputs[0].lockingBytecode);
             require(tx.inputs[receiptInput].tokenCategory == stateCategory);
             require(tx.inputs[receiptInput].tokenAmount == 0);
             bytes receiptPrefix, bytes receiptData = tx.inputs[receiptInput].nftCommitment.split(1);
