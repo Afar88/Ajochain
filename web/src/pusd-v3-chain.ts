@@ -44,7 +44,7 @@ function validate(p: PusdV3Draft | PusdV3Params): void {
   const gross = BigInt(p.members.length) * p.contribution;
   const retained = (gross / 10_000n) * rate + ((gross % 10_000n) * rate / 10_000n);
   if (retained <= 0n || retained >= gross) throw new Error('PUSD contribution must be large enough to produce a positive retained amount and payout');
-  if (p.maxFee < DUST || p.maxFee > CASH_INT_MAX || p.maxFee > 100_000_000n) throw new Error('PUSD BCH fee cap and reserve top-up must be between 1,000 and 100,000,000 sats.');
+  if (p.maxFee < 5_000n || p.maxFee > CASH_INT_MAX || p.maxFee > 100_000_000n) throw new Error('PUSD BCH fee cap and reserve top-up must be between 5,000 and 100,000,000 sats.');
   const category = categoryFor(p);
   if (!/^[0-9a-f]{64}$/.test(category)) throw new Error('PUSD category must be 32-byte hex');
   if ('stateCategory' in p) {
