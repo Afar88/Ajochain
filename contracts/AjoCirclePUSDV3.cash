@@ -151,7 +151,7 @@ contract AjoCirclePUSDV3(
 
         int pot = memberCount * contribution;
         int retained = (pot / 10000) * retentionBps + ((pot % 10000) * retentionBps / 10000);
-        require(retained >= 0 && retained < pot);
+        require(retained > 0 && retained < pot);
         int totalCredits = 0;
         for (int i = 0; i < memberCount; i++) {
             int receiptInput = i + 1;
