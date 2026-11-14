@@ -99,7 +99,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, index:
       to: contract.tokenAddress, amount: escrow.satoshis + funding.satoshis,
       token: { category: PUSD, amount: CONTRIBUTION },
     })
-    .addOutput({ to: reserveAddress, amount: 18_000n });
+    .addOutput({ to: reserveAddress, amount: 15_000n });
   await builder.send();
 }
 
