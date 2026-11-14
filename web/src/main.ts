@@ -13,7 +13,7 @@ import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
-import { planMockPusdAnchor, planMockPusdGenesis, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_NAME, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, MOCK_PUSD_SUPPLY } from './mock-pusd';
+import { planMockPusdAnchor, planMockPusdGenesis, planMockPusdTransfer, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS } from './mock-pusd';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -614,8 +614,40 @@ async function renderPusdV3Circle(encoded: string) {
 function renderMockPusdTools() {
   const category = getMockPusdCategory();
   const connectedAddress = wallet.state === 'connected' ? wallet.address('chipnet') : null;
-  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><form id="importMockPusd" class="restore-circle"><label>Import a tester category from the issuer<input name="category" maxlength="64" minlength="64" pattern="[0-9a-fA-F]{64}" placeholder="64-character CashToken category ID" required/></label><button class="ghost" type="submit">Use existing tPUSD category</button><p class="small muted">Other testers should paste the exact category shared by the token issuer. Only import a category you trust.</p></form><button class="btn" id="issueMockPusd" ${network === 'chipnet' && !category ? '' : 'disabled'}>${category ? 'tPUSD already configured' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
-  $<HTMLFormElement>('#importMockPusd').onsubmit = ev => {\n    ev.preventDefault();\n    const value = String(new FormData($<HTMLFormElement>('#importMockPusd')).get('category') || '').trim().toLowerCase();\n    if (!/^[0-9a-f]{64}$/.test(value)) { $('#mockPusdError').textContent = 'Enter a valid 32-byte Chipnet category ID.'; return; }\n    try { saveMockPusdCategory(value); location.reload(); } catch (e: any) { $('#mockPusdError').textContent = String(e?.message || e); }\n  };\n  const button = $<HTMLButtonElement>('#issueMockPusd');
+  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><form id="importMockPusd" class="restore-circle"><label>Import a tester category from the issuer<input name="category" maxlength="64" minlength="64" pattern="[0-9a-fA-F]{64}" placeholder="64-character CashToken category ID" required/></label><button class="ghost" type="submit">Use existing tPUSD category</button><p class="small muted">Other testers should paste the exact category shared by the token issuer. Only import a category you trust.</p></form><div class="restore-circle"><h3>Distribute existing tPUSD</h3><p class="small muted">Send tokens from this connected issuer wallet to a tester. This transfers existing supply only; it cannot mint more tPUSD.</p><p class="small muted">Issuer wallet: ${connectedAddress ? `<code>${esc(connectedAddress)}</code>` : 'Connect Selene to view your wallet address.'}</p><form id="sendMockPusd"><label>Tester Chipnet address<input name="recipient" placeholder="bitcoincash:… or bchtest:…" autocomplete="off" required/></label><label>Amount (tPUSD)<input name="amount" inputmode="decimal" placeholder="e.g. 100 or 25.5" pattern="[0-9]+(\\.[0-9]{1,6})?" required/></label><button class="ghost" type="submit" ${category && network === 'chipnet' ? '' : 'disabled'}>Review and send tPUSD</button></form><p class="small muted">The issuer must have tPUSD and separate Chipnet BCH for network fees. Selene will ask you to approve the transfer.</p></div><button class="btn" id="issueMockPusd" ${network === 'chipnet' && !category ? '' : 'disabled'}>${category ? 'tPUSD already configured' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
+  $<HTMLFormElement>('#importMockPusd').onsubmit = ev => {
+    ev.preventDefault();
+    const value = String(new FormData($<HTMLFormElement>('#importMockPusd')).get('category') || '').trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(value)) { $('#mockPusdError').textContent = 'Enter a valid 32-byte Chipnet category ID.'; return; }
+    try { saveMockPusdCategory(value); location.reload(); } catch (e: any) { $('#mockPusdError').textContent = String(e?.message || e); }
+  };\n  $<HTMLFormElement>('#sendMockPusd').onsubmit = async ev => {
+    ev.preventDefault();
+    const error = $('#mockPusdError');
+    error.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('Switch to Chipnet before sending tPUSD.');
+      if (!category) throw new Error('Import or create the tPUSD category first.');
+      const sender = wallet.state === 'connected' ? wallet.address('chipnet') : null;
+      if (!sender) { openWalletModal(); throw new Error('Connect the issuer Selene wallet first.'); }
+      const form = new FormData($<HTMLFormElement>('#sendMockPusd'));
+      const recipient = String(form.get('recipient') || '').trim();
+      const amountText = String(form.get('amount') || '').trim();
+      if (!/^\\d+(?:\\.\\d{1,6})?$/.test(amountText)) throw new Error('Enter a valid amount with up to 6 decimal places.');
+      const [whole, fraction = ''] = amountText.split('.');
+      const amount = BigInt(whole) * 1_000_000n + BigInt((fraction + '000000').slice(0, 6));
+      if (amount <= 0n) throw new Error('Transfer amount must be greater than zero.');
+      const submit = $<HTMLButtonElement>('#sendMockPusd button[type=submit]');
+      submit.disabled = true;
+      error.textContent = 'Preparing tPUSD transfer…';
+      const plan = await planMockPusdTransfer(sender, recipient, category, amount);
+      error.textContent = 'Review and approve the tPUSD transfer in Selene…';
+      const txid = await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Send existing tPUSD to a Chipnet tester', 'chipnet');
+      error.innerHTML = `tPUSD transfer broadcast: <a href="${explorerTx('chipnet', txid)}" target="_blank" rel="noopener">View transaction</a>. Sent ${esc(amountText)} tPUSD.`;
+      $<HTMLFormElement>('#sendMockPusd').reset();
+    } catch (e: any) { error.textContent = String(e?.message || e); }
+    finally { const submit = $<HTMLButtonElement>('#sendMockPusd button[type=submit]'); if (submit) submit.disabled = !category || network !== 'chipnet'; }
+  };
+  const button = $<HTMLButtonElement>('#issueMockPusd');
   button.onclick = async () => {
     const error = $('#mockPusdError');
     const status = $('#mockPusdStatus');
