@@ -113,9 +113,10 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, escrow
 
 async function payout(provider: MockNetworkProvider, contract: Contract, escrows: Contract[], recipientIndex = 0) {
   const { state, receipts } = await current(provider, contract, escrows);
-  const escrowUtxos = await Promise.all(escrows.map(async escrow =>
-    (await escrow.getUtxos()).find(u => u.token?.category === PUSD) as SpendableUtxo,
-  ));
+  const escrowUtxos = await Promise.all(escrows.map(async escrow => {
+    const utxos = await escrow.getUtxos();
+    return (utxos.find(u => u.token?.category === PUSD) ?? utxos[0]) as SpendableUtxo;
+  }));
   const reserveAddress = pkhToAddress(initiator.pkh, 'chipnet');
   const reserve = provider.addUtxo(reserveAddress, randomUtxo({ satoshis: 20_000n }));
   const unlock = contract.unlock.payout();
