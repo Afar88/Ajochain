@@ -644,6 +644,8 @@ function renderMockPusdTools() {
       status.textContent = 'Approve transaction 2 of 2 in Selene: issue the fixed tPUSD supply.';
       const tokenTxid = await wallet.signAndBroadcast(issuance.wc, issuance.walletInputs, 'Issue fixed-supply AjoChain tPUSD', 'chipnet');
       saveMockPusdCategory(issuance.category);
+      button.textContent = 'tPUSD already configured';
+      button.disabled = true;
       let verified = false;
       for (let attempt = 0; attempt < 20; attempt++) {
         verified = await verifyMockPusdGenesis(address, issuance.category);
