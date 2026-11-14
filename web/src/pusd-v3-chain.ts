@@ -233,7 +233,7 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   const grossPayout = BigInt(params.members.length) * params.contribution;
   const retentionBps = params.retentionBps ?? DEFAULT_RETENTION_BPS;
   const retained = (grossPayout / 10_000n) * retentionBps + ((grossPayout % 10_000n) * retentionBps / 10_000n);
-  if (retained < 0n || retained >= grossPayout) throw new Error('ACR retention leaves no valid PUSD payout at this contribution size.');
+  if (retained <= 0n || retained >= grossPayout) throw new Error('ACR retention leaves no valid PUSD payout at this contribution size.');
   if (pool.satoshis < 2n * DUST) throw new Error('PUSD pool does not contain enough BCH backing for recipient and rollover outputs.');
   const reserve = all.filter(u => !u.token && u.satoshis >= DUST + params.maxFee)
     .sort((a,b) => a.satoshis > b.satoshis ? -1 : 1)[0];
