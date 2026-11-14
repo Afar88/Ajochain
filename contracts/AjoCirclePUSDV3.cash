@@ -51,6 +51,7 @@ contract AjoCirclePUSDV3(
             require(tx.inputs[2].tokenAmount > 0);
             require(tx.inputs[2].nftCommitment == 0x);
             poolAmount = tx.inputs[2].tokenAmount;
+            require(poolAmount <= 9223372036854775807 - amount);
             poolBacking = tx.inputs[2].value;
             tokenStart = 3;
             require(this.activeInputIndex <= 2);
@@ -109,7 +110,7 @@ contract AjoCirclePUSDV3(
         require(tx.outputs[2].value == poolBacking + tokenBackingIn);
         require(tx.outputs[2].value >= 1000);
 
-        require(tx.outputs[3].lockingBytecode == tx.inputs[reserveIndex].lockingBytecode);
+        require(tx.outputs[3].lockingBytecode == selfLock);
         require(tx.outputs[3].tokenCategory == 0x);
         require(tx.outputs[3].tokenAmount == 0);
         require(tx.outputs[3].value <= tx.inputs[reserveIndex].value);
@@ -141,7 +142,7 @@ contract AjoCirclePUSDV3(
         require(round >= 0 && round < memberCount);
 
         int pot = memberCount * contribution;
-        int retained = pot * retentionBps / 10000;
+        int retained = (pot / 10000) * retentionBps + ((pot % 10000) * retentionBps / 10000);
         require(retained > 0 && retained < pot);
         int totalCredits = 0;
         for (int i = 0; i < memberCount; i++) {
@@ -155,6 +156,7 @@ contract AjoCirclePUSDV3(
             require(receiptCredit.length == 8);
             int oldCredit = int(receiptCredit);
             require(oldCredit >= contribution);
+            require(totalCredits <= 9223372036854775807 - oldCredit);
             totalCredits = totalCredits + oldCredit;
             int nextCredit = oldCredit - contribution;
             if (i == round) {
