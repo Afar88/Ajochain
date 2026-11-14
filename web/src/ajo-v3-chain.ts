@@ -95,7 +95,7 @@ function pickFunding(utxos: SpendableUtxo[], required: bigint) {
   return coin;
 }
 
-/** V2 genesis creates the state NFT and all member receipt NFTs in one inspected transaction. */
+/** V3 genesis creates the state NFT and all member receipt NFTs in one inspected transaction. */
 export async function planV3Genesis(draft: V3CircleDraft, walletAddress: string) {
   validate(draft);
   const provider = await getProvider(draft.network);
@@ -173,17 +173,24 @@ export async function planV3Payout(params: V3CircleParams) {
   const retained = (pot / 10_000n) * retentionBps + ((pot % 10_000n) * retentionBps / 10_000n);
   if (retained >= pot) throw new Error('ACR retention must leave a positive payout for the scheduled member.');
   if (state.satoshis - pot + retained < STATE_DUST) throw new Error('Payout would reduce the state reserve below 1,000 sats.');
-  const builder = new TransactionBuilder({ provider })
-    .addInput(state, contract.unlock.payout())
-    .addInputs(receipts, contract.unlock.payout())
-    .addOutput({ to: contract.tokenAddress, amount: state.satoshis - pot + retained, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '53' + ((round + 1) % params.members.length).toString(16).padStart(2, '0') } } });
-  receipts.forEach((receipt, i) => {
-    const credit = v3CreditFromCommitment(receipt.token!.nft!.commitment);
-    builder.addOutput({ to: contract.tokenAddress, amount: receipt.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: v3ReceiptCommitment(i, credit - params.contribution + (i === round ? retained : 0n)) } } });
-  });
-  const payout = pot - retained - params.maxFee;
-  builder.addOutput({ to: params.members[round], amount: payout });
-  return { builder, round, recipient: params.members[round], payout, grossPayout: pot, retained, retentionBps, fee: params.maxFee };
+  const make = (fee: bigint) => {
+    const b = new TransactionBuilder({ provider })
+      .addInput(state, contract.unlock.payout())
+      .addInputs(receipts, contract.unlock.payout())
+      .addOutput({ to: contract.tokenAddress, amount: state.satoshis - pot + retained, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '53' + ((round + 1) % params.members.length).toString(16).padStart(2, '0') } } });
+    receipts.forEach((receipt, i) => {
+      const credit = v3CreditFromCommitment(receipt.token!.nft!.commitment);
+      b.addOutput({ to: contract.tokenAddress, amount: receipt.satoshis, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: v3ReceiptCommitment(i, credit - params.contribution + (i === round ? retained : 0n)) } } });
+    });
+    b.addOutput({ to: params.members[round], amount: pot - retained - fee });
+    return b;
+  };
+  const draft = make(1n).build();
+  const fee = BigInt(Math.ceil(draft.length / 2)) + 10n;
+  if (fee > params.maxFee) throw new Error(`Estimated BCH miner fee ${fee} sats exceeds this circle's maxFee ${params.maxFee} sats.`);
+  const payout = pot - retained - fee;
+  const builder = make(fee);
+  return { builder, round, recipient: params.members[round], payout, grossPayout: pot, retained, retentionBps, fee };
 }
 
 
