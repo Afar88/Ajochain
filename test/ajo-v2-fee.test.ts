@@ -121,7 +121,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, treasur
 async function cancel(provider: MockNetworkProvider, contract: Contract, signer = initiator) {
   const { state, receipts } = await currentCircle(provider, contract);
   const fundingAddress = pkhToAddress(signer.pkh, 'chipnet');
-  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: 10_000n }));
+  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: 20_000n }));
   const builder = new TransactionBuilder({ provider })
     .addInput(state, contract.unlock.cancel(signer.pub, signer.sig));
   builder.addInputs(receipts, contract.unlock.cancel(signer.pub, signer.sig));
