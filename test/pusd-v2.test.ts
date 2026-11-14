@@ -78,9 +78,9 @@ async function current(provider: MockNetworkProvider, contract: Contract, escrow
   return { state, receipts, emptyEscrows, all };
 }
 
-async function deposit(provider: MockNetworkProvider, contract: Contract, escrows: Contract[], index: number, fundingIndex = index) {
+async function deposit(provider: MockNetworkProvider, contract: Contract, escrows: Contract[], index: number, fundingIndex = index, escrowIndex = index) {
   const { state, receipts, emptyEscrows } = await current(provider, contract, escrows);
-  const escrow = emptyEscrows[index];
+  const escrow = emptyEscrows[escrowIndex];
   const memberAddress = tokenAddress(members[fundingIndex].pkh);
   const funding = provider.addUtxo(memberAddress, randomUtxo({
     satoshis: DUST,
@@ -92,7 +92,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, escrow
   const builder = new TransactionBuilder({ provider })
     .addInput(state, unlock)
     .addInput(receipts[index], unlock)
-    .addInput(escrow, escrows[index].unlock.attest())
+    .addInput(escrow, escrows[escrowIndex].unlock.attest())
     .addInput(funding, members[fundingIndex].sig.unlockP2PKH())
     .addInput(reserve, initiator.sig.unlockP2PKH())
     .addOutput({
@@ -104,7 +104,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, escrow
       token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(index, CONTRIBUTION) } },
     })
     .addOutput({
-      to: escrows[index].tokenAddress, amount: escrow.satoshis + funding.satoshis,
+      to: escrows[escrowIndex].tokenAddress, amount: escrow.satoshis + funding.satoshis,
       token: { category: PUSD, amount: CONTRIBUTION },
     })
     .addOutput({ to: reserveAddress, amount: 15_000n });
@@ -130,5 +130,12 @@ describe('AjoCirclePUSDV2 member escrow covenant', () => {
     const { contract, escrows } = makeContract(provider);
     addGenesis(provider, contract, escrows);
     await expect(deposit(provider, contract, escrows, 0, 1)).rejects.toThrow();
+  });
+
+  it('rejects another member’s escrow even when the receipt index is correct', async () => {
+    const provider = new MockNetworkProvider();
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
+    await expect(deposit(provider, contract, escrows, 0, 0, 1)).rejects.toThrow();
   });
 });
