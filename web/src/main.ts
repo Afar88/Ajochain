@@ -207,7 +207,29 @@ const memberRow = (v: string, i: number) => `<input class="maddr" name="m" place
 function saveCircle(p: CircleParams) { const list: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const e = encodeCircle(p); if (!list.includes(e)) list.unshift(e); localStorage.setItem('ajo-circles', JSON.stringify(list.slice(0, 20))); }
 
 const encodePusdLink = (p: PusdCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString() })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const decodePusdLink = (s: string): PusdCircleParams => { const raw = decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))); const p = JSON.parse(raw); return { ...p, contribution: BigInt(p.contribution) }; };
+const decodePusdLink = (s: string): PusdCircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(s) || s.length > 4096) throw new Error('Invalid PUSD circle link.');
+  const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = decodeURIComponent(escape(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))));
+  const value = JSON.parse(raw);
+  if (!value || value.network !== 'chipnet' || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60 ||
+      typeof value.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(value.stateCategory) ||
+      typeof value.pusdCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(value.pusdCategory) ||
+      !Array.isArray(value.members) || value.members.length < 2 || value.members.length > 5 ||
+      !value.members.every((member: unknown) => typeof member === 'string') ||
+      typeof value.contribution !== 'string' || !/^\\d+$/.test(value.contribution)) {
+    throw new Error('This is not a valid Chipnet PUSD circle link.');
+  }
+  const p: PusdCircleParams = { ...value, contribution: BigInt(value.contribution) };
+  // Invite links are untrusted input: accept only the currently configured token category.
+  // With Chipnet PUSD unconfigured, legacy links intentionally remain unavailable.
+  const configuredCategory = configuredPusdCategory(p.network);
+  if (p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
+    throw new Error('This invite uses an unconfigured PUSD category. Only the configured token category is accepted.');
+  }
+  validatePusdParams(p);
+  return p;
+};
 function renderPusdCreate() {
   const addr = wallet.state === 'connected' ? wallet.address(network) : null;
   let categoryReady = false;
@@ -223,11 +245,12 @@ function savePusdCircle(p: PusdCircleParams) { const list: string[] = JSON.parse
 
 async function renderPusdCircle(encoded: string) {
   let p: PusdCircleParams; try { p = decodePusdLink(encoded); } catch { app.innerHTML = '<section class="card"><p class="err">Invalid PUSD circle link.</p></section>'; return; }
-  // Opening an invite link adds this circle to the visitor's local dashboard.
-  savePusdCircle(p);
+  // Decode and validate the untrusted invite before saving it or changing networks.
   if (p.network !== network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
   if (p.network === 'mainnet') { app.innerHTML = `<section class="card"><span class="tag gold">Experimental</span><h2>${esc(p.name)}</h2><div class="note"><b>PUSD Mainnet is not enabled.</b> This circle was created with an unsupported network setting. Switch to Chipnet or use a verified PUSD Mainnet deployment.</div><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
   try { validatePusdParams(p); } catch (e: any) { app.innerHTML = `<section class="card"><h2>${esc(p.name)}</h2><p class="err">${esc(String(e.message || e))}</p><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
+  // Persist only after all invite and network/category checks have succeeded.
+  savePusdCircle(p);
   const offlineContract = pusdContract(p, offline(p.network)); let provider: Awaited<ReturnType<typeof getProvider>> | null = null; let contract = offlineContract;
   app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · experimental PUSD</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Test only</span></div><p class="muted">${p.members.length} members · ${p.contribution.toString()} PUSD base units each per round</p><p>Contract: <code class="addr">${contract.address}</code></p><div id="pstatus"><p class="muted">Reading circle UTXOs…</p></div><div class="actions"><button class="ghost sm" id="prefresh">Refresh</button>${wallet.state === 'connected' ? '<button class="sm" id="pcontribute">Contribute PUSD</button>' : ''}</div><p class="err" id="plerr"></p></section>`;
   const load = async () => { try { if (!provider) { provider = await getProvider(p.network); contract = pusdContract(p, provider); } const utxos = await contract.getUtxos(); const s = pusdStatus(p, utxos); $('#pstatus').innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${s.round === null ? 'Not started' : `${s.round + 1} / ${p.members.length}`}</b></div><div><span>Collected</span><b>${s.available.toString()}</b></div><div><span>Fee reserve</span><b>${s.reserveUtxos.length} UTXOs</b></div></div><p><b>Next recipient:</b> ${s.round === null ? '—' : `Member ${s.round + 1}`}</p><div class="actions"><button class="btn" id="ppayout" ${s.ready ? '' : 'disabled'}>Pay out PUSD round</button></div>`; $('#ppayout').onclick = async () => { try { const result = buildPusdPayout(p, contract, utxos, provider!); const txid = await provider!.sendRawTransaction(result.builder.build()); $('#plerr').innerHTML = `PUSD payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); } catch (e: any) { $('#plerr').textContent = String(e.message || e); } }; } catch (e: any) { $('#pstatus').innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; } };
