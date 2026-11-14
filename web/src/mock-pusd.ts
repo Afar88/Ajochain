@@ -13,6 +13,18 @@ export const MOCK_PUSD_TICKER = 'tPUSD';
 export const MOCK_PUSD_DECIMALS = 6;
 export const MOCK_PUSD_SUPPLY = 1_000_000_000n; // 1,000 tPUSD at 6 decimals
 export const MOCK_PUSD_STORAGE_KEY = 'ajo-mock-pusd-category';
+
+/** Parse a user-entered tPUSD amount into 6-decimal base units. */
+export function parseMockPusdAmount(input: string): bigint {
+  const value = input.trim();
+  if (!/^\\d+(?:\\.\\d{1,6})?$/.test(value)) {
+    throw new Error('Enter a valid amount with up to 6 decimal places.');
+  }
+  const [whole, fraction = ''] = value.split('.');
+  const amount = BigInt(whole) * 1_000_000n + BigInt((fraction + '000000').slice(0, 6));
+  if (amount <= 0n) throw new Error('Transfer amount must be greater than zero.');
+  return amount;
+}
 const TOKEN_DUST = 1_000n;
 const CHANGE_DUST = 546n;
 
