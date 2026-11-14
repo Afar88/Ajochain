@@ -134,7 +134,7 @@ contract AjoCirclePUSDV3(
     function payout() {
         require(memberCount >= 2 && memberCount <= 5);
         require(contribution > 0 && contribution <= 9223372036854775807 / memberCount);
-        require(maxFee >= 1000 && retentionBps >= 0 && retentionBps <= 5000);
+        require(maxFee >= 5000 && retentionBps >= 0 && retentionBps <= 5000);
         require(stateCategory != pusdCategory);
         require(this.activeInputIndex >= 0 && this.activeInputIndex <= memberCount + 2);
         require(tx.inputs.length == memberCount + 3);
