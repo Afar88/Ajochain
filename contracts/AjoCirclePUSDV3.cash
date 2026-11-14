@@ -39,7 +39,7 @@ contract AjoCirclePUSDV3(
         bytes statePrefix, bytes stateData = tx.inputs[0].nftCommitment.split(1);
         bytes stateRound, bytes poolFlag = stateData.split(1);
         require(statePrefix == 0x53 && stateRound.length == 1 && poolFlag.length == 1);
-        require(int(stateRound) < memberCount);
+        require(int(stateRound) >= 0 && int(stateRound) < memberCount);
         int poolAmount = 0;
         int poolBacking = 0;
         int tokenStart = 2;
@@ -78,6 +78,7 @@ contract AjoCirclePUSDV3(
             require(tx.inputs[i].tokenCategory == pusdCategory);
             require(tx.inputs[i].tokenAmount > 0);
             require(tx.inputs[i].nftCommitment == 0x);
+            require(tokenAmountIn <= 9223372036854775807 - tx.inputs[i].tokenAmount);
             tokenAmountIn = tokenAmountIn + tx.inputs[i].tokenAmount;
             tokenBackingIn = tokenBackingIn + tx.inputs[i].value;
         }
