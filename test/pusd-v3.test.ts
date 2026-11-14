@@ -101,7 +101,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(0, C) } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: PUSD, amount: C } })
       .addOutput({ to: contract.address, amount: 10_000n })
-      .addOutput({ to: regular, amount: 15_000n });
+      .addOutput({ to: regular, amount: 13_000n });
     await builder.send();
 
     const after = await contract.getUtxos();
