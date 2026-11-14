@@ -109,6 +109,13 @@ export async function planMockPusdGenesis(walletAddress: string, anchorTxid: str
   return { wc, walletInputs: inputs.map((_, i) => i), category, supply: MOCK_PUSD_SUPPLY };
 }
 
+export async function verifyMockPusdGenesis(walletAddress: string, category: string): Promise<boolean> {
+  const provider = await getProvider('chipnet');
+  const utxos = await provider.getUtxos(tokenAwareAddress(walletAddress));
+  return utxos.some(u => u.token?.category.toLowerCase() === category.toLowerCase()
+    && u.token.amount === MOCK_PUSD_SUPPLY && u.satoshis >= TOKEN_DUST && !u.token.nft);
+}
+
 export function saveMockPusdCategory(category: string) {
   if (!/^[0-9a-f]{64}$/i.test(category)) throw new Error('Invalid tPUSD category ID.');
   localStorage.setItem(MOCK_PUSD_STORAGE_KEY, category.toLowerCase());
