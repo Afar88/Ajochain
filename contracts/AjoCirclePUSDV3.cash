@@ -27,7 +27,7 @@ contract AjoCirclePUSDV3(
         require(maxFee >= 0 && retentionBps >= 0 && retentionBps <= 5000);
         require(stateCategory != pusdCategory);
         require(this.activeInputIndex >= 0 && this.activeInputIndex <= 2);
-        require(tx.outputs.length == 4);
+        require(tx.outputs.length == 5);
         require(tx.inputs[0].lockingBytecode == tx.inputs[1].lockingBytecode);
         require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
         bytes selfLock = tx.inputs[0].lockingBytecode;
@@ -111,12 +111,19 @@ contract AjoCirclePUSDV3(
         require(tx.outputs[2].value == poolBacking + tokenBackingIn);
         require(tx.outputs[2].value >= 1000);
 
+        // Deposit a fixed maxFee-sized BCH reserve top-up, then return
+        // the member's remaining BCH change. Never sweep their whole UTXO.
+        require(tx.inputs[reserveIndex].value >= maxFee + 546);
         require(tx.outputs[3].lockingBytecode == selfLock);
         require(tx.outputs[3].tokenCategory == 0x);
         require(tx.outputs[3].tokenAmount == 0);
-        require(tx.outputs[3].value <= tx.inputs[reserveIndex].value);
-        require(tx.outputs[3].value >= tx.inputs[reserveIndex].value - maxFee);
-        require(tx.outputs[3].value >= 1000);
+        require(tx.outputs[3].value == maxFee);
+        require(tx.outputs[4].lockingBytecode == tx.inputs[reserveIndex].lockingBytecode);
+        require(tx.outputs[4].tokenCategory == 0x);
+        require(tx.outputs[4].tokenAmount == 0);
+        require(tx.outputs[4].value >= 546);
+        require(tx.outputs[4].value <= tx.inputs[reserveIndex].value - maxFee);
+        require(tx.outputs[4].value >= tx.inputs[reserveIndex].value - maxFee - maxFee);
         int bchOut = 0;
         for (int j = 0; j < tx.outputs.length; j++) { bchOut = bchOut + tx.outputs[j].value; }
         require(bchIn >= bchOut);
