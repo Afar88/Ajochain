@@ -111,7 +111,66 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, escrow
   await builder.send();
 }
 
+async function payout(provider: MockNetworkProvider, contract: Contract, escrows: Contract[]) {
+  const { state, receipts } = await current(provider, contract, escrows);
+  const escrowUtxos = await Promise.all(escrows.map(async escrow =>
+    (await escrow.getUtxos()).find(u => u.token?.category === PUSD) as SpendableUtxo,
+  ));
+  const reserveAddress = pkhToAddress(initiator.pkh, 'chipnet');
+  const reserve = provider.addUtxo(reserveAddress, randomUtxo({ satoshis: 20_000n }));
+  const unlock = contract.unlock.payout();
+  const builder = new TransactionBuilder({ provider })
+    .addInput(state, unlock)
+    .addInput(receipts[0], unlock)
+    .addInput(receipts[1], unlock)
+    .addInput(escrowUtxos[0], escrows[0].unlock.attest())
+    .addInput(escrowUtxos[1], escrows[1].unlock.attest())
+    .addInput(reserve, initiator.sig.unlockP2PKH())
+    .addOutput({
+      to: contract.tokenAddress, amount: state.satoshis,
+      token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '540101' } },
+    })
+    .addOutput({
+      to: contract.tokenAddress, amount: receipts[0].satoshis,
+      token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(0, 0n) } },
+    })
+    .addOutput({
+      to: contract.tokenAddress, amount: receipts[1].satoshis,
+      token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: creditCommitment(1, 0n) } },
+    })
+    .addOutput({ to: escrows[0].address, amount: escrowUtxos[0].satoshis })
+    .addOutput({ to: escrows[1].address, amount: escrowUtxos[1].satoshis })
+    .addOutput({
+      to: pkhToAddress(members[0].pkh, 'chipnet'), amount: DUST,
+      token: { category: PUSD, amount: 2n * CONTRIBUTION },
+    })
+    .addOutput({ to: reserveAddress, amount: 15_000n });
+  await builder.send();
+}
+
 describe('AjoCirclePUSDV2 member escrow covenant', () => {
+  it('pays the scheduled member and debits each member receipt and escrow atomically', async () => {
+    const provider = new MockNetworkProvider();
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
+    await deposit(provider, contract, escrows, 0);
+    await deposit(provider, contract, escrows, 1);
+
+    await payout(provider, contract, escrows);
+
+    const { state, receipts } = await current(provider, contract, escrows);
+    expect(state.token!.nft!.commitment).toBe('540101');
+    expect(receipts.map(u => u.token!.nft!.commitment)).toEqual([
+      creditCommitment(0, 0n), creditCommitment(1, 0n),
+    ]);
+    for (const escrow of escrows) {
+      const remaining = await escrow.getUtxos();
+      expect(remaining.some(u => u.token?.category === PUSD)).toBe(false);
+      expect(remaining[0].satoshis).toBe(2n * DUST);
+    }
+  });
+
+
   it('attributes each deposit to the registered member and preserves token BCH backing', async () => {
     const provider = new MockNetworkProvider();
     const { contract, escrows } = makeContract(provider);
