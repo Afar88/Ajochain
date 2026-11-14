@@ -28,7 +28,7 @@ PUSD token backing satoshis are split between the recipient's token output and t
 
 ## Deposit restrictions
 
-- The registered member must fund the PUSD inputs and a separate token-free BCH input. Each successful deposit adds exactly the configured `maxFee` amount to the circle's BCH fee reserve; any remaining BCH from that input is returned to the member, less the actual miner fee.
+- The registered member must fund the PUSD inputs and a separate token-free BCH input. Each successful deposit adds exactly the configured `maxFee` amount (minimum 5,000 sats) to the circle's BCH fee reserve; any remaining BCH from that input is returned to the member, less the actual miner fee. The member's BCH input must cover both the reserve top-up and a fee-estimation allowance before change.
 - The PUSD input amount must exactly match the credit being added. The current planner supports multiple inputs only when their sum is exact; if the wallet cannot produce an exact sum, the member must consolidate token UTXOs first.
 - The first deposit creates the PUSD pool and flips the state commitment's pool-initialized flag.
 - Later deposits must spend the existing pool UTXO and update its amount and BCH backing.
