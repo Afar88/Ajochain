@@ -226,7 +226,7 @@ const decodePusdLink = (s: string): PusdCircleParams => {
   // Invite links are untrusted input: accept only the currently configured token category.
   // With Chipnet PUSD unconfigured, legacy links intentionally remain unavailable.
   const configuredCategory = configuredPusdCategory(p.network);
-  if (p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
+  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
     throw new Error('This invite uses an unconfigured PUSD category. Only the configured token category is accepted.');
   }
   validatePusdParams(p);
