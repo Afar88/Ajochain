@@ -14,7 +14,7 @@ const RECEIPT_PREFIX = '52';
 const CASH_SCRIPT_INT_MAX = 0x7fffffffffffffffn;
 
 export interface V3CircleParams {
-  version: 2;
+  version: 3;
   name: string;
   network: Net;
   members: string[];
@@ -27,14 +27,16 @@ export type V3CircleDraft = Omit<V3CircleParams, 'stateCategory'>;
 
 const hex = (v: Uint8Array) => Array.from(v, b => b.toString(16).padStart(2, '0')).join('');
 function validate(p: V3CircleDraft | V3CircleParams): void {
-  if (p.version !== 2 || !p.name.trim()) throw new Error('Invalid v3 circle details');
+  if (p.version !== 3 || !p.name.trim()) throw new Error('Invalid v3 circle details');
   if (p.members.length < 2 || p.members.length > 5) throw new Error('A v3 circle needs 2–5 members');
   const members = p.members.map(a => hex(addressToPkh(a)));
   if (new Set(members).size !== members.length) throw new Error('Each member must have a unique BCH address');
   if (p.contribution < 1000n || p.contribution > CASH_SCRIPT_INT_MAX) throw new Error('Contribution must be between 1,000 sats and the CashScript integer limit');
-  if (p.maxFee < 0n || p.maxFee > CASH_SCRIPT_INT_MAX || p.maxFee > BigInt(p.members.length) * p.contribution - STATE_DUST) throw new Error('maxFee must leave at least 1000 sats for the recipient');
   const retentionBps = p.retentionBps ?? DEFAULT_RETENTION_BPS;
   if (retentionBps < 0n || retentionBps > MAX_RETENTION_BPS) throw new Error('ACR retention must be between 0% and 50%');
+  const gross = BigInt(p.members.length) * p.contribution;
+  const retained = (gross / 10_000n) * retentionBps + ((gross % 10_000n) * retentionBps / 10_000n);
+  if (p.maxFee < 0n || p.maxFee > CASH_SCRIPT_INT_MAX || p.maxFee > gross - retained - STATE_DUST) throw new Error('maxFee must leave at least 1000 sats for the recipient after ACR retention.');
   if ('stateCategory' in p && !/^[0-9a-f]{64}$/i.test(p.stateCategory)) throw new Error('Invalid v3 token category');
 }
 function feeEstimate(inputs: number, outputs: number) { return BigInt(10 + inputs * 150 + outputs * 100 + 100); }
@@ -58,9 +60,9 @@ export function v3CreditFromCommitment(commitment: string): bigint {
   return credit;
 }
 function findState(utxos: SpendableUtxo[], category: string) {
-  const matches = utxos.filter(u => u.token?.category === category && u.token.nft?.capability === 'minting' && /^53[0-4]$/.test(u.token.nft.commitment));
-  if (matches.length !== 1) throw new Error(matches.length ? 'Multiple v3 state NFTs found; stop and investigate.' : 'V2 state NFT not found or has an invalid commitment.');
-  if (matches[0].token!.amount !== 0n) throw new Error('V2 state NFT unexpectedly carries fungible tokens.');
+  const matches = utxos.filter(u => u.token?.category === category && u.token.nft?.capability === 'minting' && /^53(?:00|01|02|03|04)$/.test(u.token.nft.commitment));
+  if (matches.length !== 1) throw new Error(matches.length ? 'Multiple v3 state NFTs found; stop and investigate.' : 'V3 state NFT not found or has an invalid commitment.');
+  if (matches[0].token!.amount !== 0n) throw new Error('V3 state NFT unexpectedly carries fungible tokens.');
   return matches[0];
 }
 function findReceipt(utxos: SpendableUtxo[], category: string, index: number) {
@@ -73,13 +75,13 @@ function findReceipt(utxos: SpendableUtxo[], category: string, index: number) {
 }
 
 /** Reject unexpected category UTXOs at the covenant address instead of silently ignoring them. */
-function assertV2UtxoSet(utxos: SpendableUtxo[], category: string, memberCount: number) {
+function assertV3UtxoSet(utxos: SpendableUtxo[], category: string, memberCount: number) {
   const categoryUtxos = utxos.filter(u => u.token?.category === category);
   if (categoryUtxos.length !== memberCount + 1) {
     throw new Error(`Invalid v3 circle token set: expected exactly ${memberCount + 1} state/receipt NFTs, found ${categoryUtxos.length}. Stop and investigate before spending.`);
   }
   const state = findState(utxos, category);
-  if (!state) throw new Error('V2 state NFT not found.');
+  if (!state) throw new Error('V3 state NFT not found.');
   const receipts = Array.from({ length: memberCount }, (_, index) => findReceipt(utxos, category, index));
   const knownOutpoints = new Set([state, ...receipts].map(u => `${u.txid}:${u.vout}`));
   if (categoryUtxos.some(u => !knownOutpoints.has(`${u.txid}:${u.vout}`))) {
@@ -99,7 +101,7 @@ export async function planV3Genesis(draft: V3CircleDraft, walletAddress: string)
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token);
   const genesis = coins.find(u => u.vout === 0 && u.satoshis >= 3000n);
-  if (!genesis) throw new Error('V2 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. Check wallet funding; do not send more BCH until this is confirmed.');
+  if (!genesis) throw new Error('V3 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. Check wallet funding; do not send more BCH until this is confirmed.');
   const params: V3CircleParams = { ...draft, retentionBps: draft.retentionBps ?? DEFAULT_RETENTION_BPS, stateCategory: genesis.txid };
   const contract = contractFor(params, provider);
   const outputs = params.members.length + 2;
@@ -134,7 +136,7 @@ export async function planV3Deposit(params: V3CircleParams, memberIndex: number,
   const all = await contract.getUtxos();
   assertV2UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
-  if (!state) throw new Error('V2 state NFT not found.');
+  if (!state) throw new Error('V3 state NFT not found.');
   const receipt = findReceipt(all, params.stateCategory, memberIndex);
   const fee = feeEstimate(3, 3);
   if (fee > params.maxFee) throw new Error('Estimated deposit fee exceeds this circle maxFee.');
@@ -161,7 +163,7 @@ export async function planV3Payout(params: V3CircleParams) {
   const all = await contract.getUtxos();
   assertV2UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
-  if (!state) throw new Error('V2 state NFT not found.');
+  if (!state) throw new Error('V3 state NFT not found.');
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
   if (!Number.isInteger(round) || round < 0 || round >= params.members.length) throw new Error('Invalid v3 payout round.');
   const receipts = params.members.map((_, i) => findReceipt(all, params.stateCategory, i));
