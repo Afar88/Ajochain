@@ -79,6 +79,7 @@ contract AjoCircleV3(
         int pot = memberCount * contribution;
         int retained = (pot / 10000) * retentionBps + ((pot % 10000) * retentionBps / 10000);
         require(retained >= 0 && retained <= pot);
+        int totalCredits = 0;
         for (int i = 0; i < memberCount; i++) {
             int receiptInput = i + 1;
             require(tx.inputs[receiptInput].lockingBytecode == tx.inputs[0].lockingBytecode);
@@ -90,6 +91,8 @@ contract AjoCircleV3(
             require(receiptCredit.length == 8);
             int oldCredit = int(receiptCredit);
             require(oldCredit >= contribution);
+            require(totalCredits <= 9223372036854775807 - oldCredit);
+            totalCredits = totalCredits + oldCredit;
             int nextCredit = oldCredit - contribution;
             if (i == round) {
                 require(nextCredit <= 9223372036854775807 - retained);
@@ -106,6 +109,7 @@ contract AjoCircleV3(
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
         require(tx.outputs[0].tokenAmount == 0);
         require(tx.outputs[0].nftCommitment == 0x53 + toPaddedBytes((round + 1) % memberCount, 1));
+        require(tx.inputs[0].value >= totalCredits + 1000);
         require(tx.outputs[0].value == tx.inputs[0].value - pot + retained);
         require(tx.outputs[0].value >= 1000);
 
