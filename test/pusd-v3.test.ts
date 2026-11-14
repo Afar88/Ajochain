@@ -45,7 +45,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       satoshis: 3_000n,
       token: { category: PUSD, amount: 250_000n },
     }));
-    provider.addUtxo(contract.address, randomUtxo({ satoshis: 20_000n }));
+    provider.addUtxo(contract.address, randomUtxo({ satoshis: 30_000n }));
 
     const all = await contract.getUtxos();
     const state = all.find(u => u.token?.category === STATE && u.token.nft?.capability === 'minting')!;
@@ -101,7 +101,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(0, C) } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: PUSD, amount: C } })
       .addOutput({ to: contract.address, amount: 10_000n })
-      .addOutput({ to: regular, amount: 7_000n });
+      .addOutput({ to: regular, amount: 15_000n });
     await builder.send();
 
     const after = await contract.getUtxos();
