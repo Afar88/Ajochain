@@ -12,6 +12,7 @@ import { configuredPusdCategory, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus,
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
+import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -490,6 +491,120 @@ async function renderV3Circle(encoded: string) {
       $('#v3err').textContent = 'Deposit broadcast. Waiting for confirmation…';
       setTimeout(load, 3000);
     } catch (e: any) { $('#v3err').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
+
+const encodePusdV3Link = (p: PusdV3Params) => btoa(unescape(encodeURIComponent(JSON.stringify({
+  ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString(),
+  retentionBps: (p.retentionBps ?? 2000n).toString(),
+})))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const decodePusdV3Link = (encoded: string): PusdV3Params => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('Invalid PUSD ACR v3 circle link.');
+  let p: any;
+  try { p = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))))); }
+  catch { throw new Error('Invalid PUSD ACR v3 circle link.'); }
+  if (!p || p.version !== 3 || p.network !== 'chipnet' || typeof p.name !== 'string' || !p.name.trim() ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      typeof p.pusdCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.pusdCategory) ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee) ||
+      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
+    throw new Error('Invalid PUSD ACR v3 circle link.');
+  }
+  const configured = configuredPusdCategory('chipnet');
+  if (p.pusdCategory.toLowerCase() !== configured.toLowerCase()) throw new Error('This PUSD circle uses a category that is not the currently verified Chipnet PUSD category.');
+  const params: PusdV3Params = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee), retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps) };
+  const gross = BigInt(params.members.length) * params.contribution;
+  const retained = gross * params.retentionBps! / 10_000n;
+  if (params.contribution <= 0n || params.retentionBps! < 0n || params.retentionBps! > 5000n || retained <= 0n || retained >= gross || params.maxFee > gross - retained - 1000n) {
+    throw new Error('PUSD ACR v3 link contains invalid contribution, retention or fee limits.');
+  }
+  const keys = params.members.map(a => Array.from(addressToPkh(a)).join(','));
+  if (new Set(keys).size !== keys.length) throw new Error('PUSD ACR v3 link contains duplicate member addresses.');
+  return params;
+};
+function savePusdV3Circle(p: PusdV3Params) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-pusd-v3-circles') || '[]');
+  const encoded = encodePusdV3Link(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-pusd-v3-circles', JSON.stringify(list.slice(0, 20)));
+}
+function renderPusdV3Create() {
+  let category = '';
+  let configError = '';
+  try { category = configuredPusdCategory('chipnet'); } catch (e: any) { configError = String(e.message || e); }
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until the Chipnet token category is independently verified and configured.</p>` : `<p class="small muted">Verified PUSD category: <code>${esc(category)}</code></p>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0.01" max="50" step="0.01" value="20" required/></label><label>Maximum BCH miner fee per transaction (sats)<input name="fee" type="number" min="0" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  $('#pv3add').onclick = () => { const el = $('#pv3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#pv3f').onsubmit = async ev => {
+    ev.preventDefault(); const err = $('#pv3err'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('PUSD ACR v3 is Chipnet-only.');
+      const pusdCategory = configuredPusdCategory('chipnet');
+      const fd = new FormData($<HTMLFormElement>('#pv3f'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const amount = BigInt(String(fd.get('amount') || '0'));
+      const rate = Number(fd.get('retention'));
+      if (!Number.isFinite(rate) || rate <= 0 || rate > 50) throw new Error('Retention must be greater than 0% and at most 50%.');
+      const draft = { version: 3 as const, name: String(fd.get('name')).trim(), network, members,
+        contribution: amount, maxFee: BigInt(String(fd.get('fee') || '0')),
+        retentionBps: BigInt(Math.round(rate * 100)), pusdCategory };
+      if (!wallet.address(network)) { openWalletModal(); throw new Error('Connect Selene to create the circle.'); }
+      err.textContent = 'Preparing PUSD ACR v3 state and member receipts…';
+      const g = await planPusdV3Genesis(draft, wallet.address(network)!);
+      err.textContent = 'Approve PUSD ACR v3 genesis in Selene…';
+      await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create PUSD ACR v3 circle "${draft.name}"`, network);
+      const state = await readPusdV3Circle(g.params);
+      if (state.credits.length !== members.length || state.credits.some(x => x !== 0n) || state.pool ||
+          state.utxos.filter(u => u.token?.category === g.params.stateCategory).length !== members.length + 1) {
+        throw new Error('PUSD ACR v3 genesis did not produce the expected state and receipt set. Do not invite members.');
+      }
+      savePusdV3Circle(g.params);
+      location.hash = `#/pv3/${encodePusdV3Link(g.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+async function renderPusdV3Circle(encoded: string) {
+  let p: PusdV3Params;
+  try { p = decodePusdV3Link(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  savePusdV3Circle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  const rate = p.retentionBps ?? 2000n;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · PUSD ACR v3</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${p.contribution.toString()} PUSD base units each</p><p class="small muted">Retention: ${Number(rate) / 100}% · PUSD category: <code>${esc(p.pusdCategory || '')}</code></p><div id="pv3status"><p class="muted">Reading member receipts and PUSD pool…</p></div><div class="actions"><button class="ghost" id="pv3refresh">Refresh</button><button class="ghost" id="pv3copy">Copy invite link</button></div><div>${myIndex >= 0 ? `<label>Deposit amount (PUSD base units)<input id="pv3depositAmount" inputmode="numeric" value="${p.contribution.toString()}"/></label><button class="btn" id="pv3deposit">Add PUSD credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect the wallet registered for a member slot to add PUSD credit.</p>'}</div><p class="err" id="pv3err"></p><p class="muted small">PUSD ACR v3 is Chipnet-only and unaudited. No mainnet PUSD use.</p></section>`;
+  $('#pv3copy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#pv3status');
+    try {
+      const state = await readPusdV3Circle(p);
+      const gross = BigInt(p.members.length) * p.contribution;
+      const retained = gross * rate / 10_000n;
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>Gross PUSD</span><b>${gross.toString()}</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><div class="note"><b>ACR payout preview</b><br/>Retained: ${retained.toString()} PUSD base units<br/>Recipient: ${(gross - retained).toString()} PUSD base units before fees (PUSD backing is preserved).</div><h3>Verified member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${credit.toString()} PUSD</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'Every member has enough independently attributed PUSD credit.' : 'Payout remains locked until every member has one full contribution and the PUSD pool reconciles with all receipts.'}</p><button class="btn" id="pv3payout" ${state.ready ? '' : 'disabled'}>Pay out with PUSD ACR</button>`;
+      $('#pv3payout').onclick = async () => {
+        try { $('#pv3err').textContent = 'Preparing PUSD ACR payout…'; const result = await planPusdV3Payout(p); const provider = await getProvider(p.network); const txid = await provider.sendRawTransaction(result.builder.build()); $('#pv3err').innerHTML = `PUSD ACR payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); }
+        catch (e: any) { $('#pv3err').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#pv3refresh').onclick = load;
+  const deposit = $('#pv3deposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = BigInt($<HTMLInputElement>('#pv3depositAmount').value);
+      $('#pv3err').textContent = 'Preparing member-specific PUSD deposit…';
+      const plan = await planPusdV3Deposit(p, myIndex, amount, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add PUSD to your ACR v3 member receipt', network);
+      $('#pv3err').textContent = 'PUSD deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#pv3err').textContent = String(e.message || e); }
   };
   await load();
 }
