@@ -132,7 +132,7 @@ async function cancel(provider: MockNetworkProvider, contract: Contract, signer 
       amount: receipts[i].satoshis + CONTRIBUTION,
     });
   }
-  builder.addOutput({ to: fundingAddress, amount: 9_000n });
+  builder.addOutput({ to: fundingAddress, amount: 15_000n });
   await builder.send();
 }
 
