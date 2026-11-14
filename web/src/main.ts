@@ -11,6 +11,7 @@ import { verifyClassicCircle } from '../../src/lib/recovery';
 import { configuredPusdCategory, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
+import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -370,6 +371,125 @@ async function renderV2Circle(encoded: string) {
       $('#v2err').textContent = 'Deposit broadcast. Waiting for confirmation…';
       setTimeout(load, 3000);
     } catch (e: any) { $('#v2err').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
+
+const encodeV3Link = (p: V3CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({
+  ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString(),
+  retentionBps: (p.retentionBps ?? 2000n).toString(),
+})))).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+const decodeV3Link = (encoded: string): V3CircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid ACR v3 circle link.');
+  let p: any;
+  try { p = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))))); }
+  catch { throw new Error('This is not a valid ACR v3 circle link.'); }
+  if (!p || p.version !== 3 || p.network !== 'chipnet' || typeof p.name !== 'string' || !p.name.trim() ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\\d+$/.test(p.maxFee) ||
+      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\\d+$/.test(p.retentionBps)))) {
+    throw new Error('This is not a valid ACR v3 circle link.');
+  }
+  const params: V3CircleParams = {
+    ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee),
+    retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps),
+  };
+  const gross = BigInt(params.members.length) * params.contribution;
+  const retained = gross * (params.retentionBps ?? 2000n) / 10_000n;
+  if (params.contribution < 1000n || params.maxFee < 0n || params.retentionBps! < 0n ||
+      params.retentionBps! > 5000n || params.maxFee > gross - retained - 1000n) {
+    throw new Error('This ACR v3 link contains invalid contribution, retention or fee limits.');
+  }
+  const memberKeys = params.members.map(address => Array.from(addressToPkh(address)).join(','));
+  if (new Set(memberKeys).size !== memberKeys.length) throw new Error('This ACR v3 link contains duplicate member addresses.');
+  return params;
+};
+function saveV3Circle(p: V3CircleParams) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-v3-circles') || '[]');
+  const encoded = encodeV3Link(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-v3-circles', JSON.stringify(list.slice(0, 20)));
+}
+function renderV3Create() {
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">BCH ACR v3 · Chipnet beta</p><h2>Create a protected circle</h2><p class="note"><b>Chipnet only.</b> New V3 circles automatically retain a percentage of every payout for the winner's next contribution. This is experimental and unaudited; never use real BCH.</p><form id="v3f"><label>Circle name<input name="name" required maxlength="60" value="Our Ajo ACR"/></label><label>Contribution per member (BCH)<input name="amount" required inputmode="decimal" value="0.001"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="v3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="v3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0" max="50" step="1" value="20" required/></label><label>Maximum miner fee per transaction (sats)<input name="fee" type="number" min="0" step="1" value="10000"/></label><p class="small muted">The retention rate is fixed for this circle once created. Excess member credit carries forward.</p><p class="err" id="v3err"></p><button class="btn" type="submit" ${network === 'chipnet' ? '' : 'disabled'}>${network === 'chipnet' ? 'Create ACR v3 circle' : 'Switch to Chipnet to continue'}</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  $('#v3add').onclick = () => { const el = $('#v3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#v3f').onsubmit = async ev => {
+    ev.preventDefault(); const err = $('#v3err'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('ACR v3 is Chipnet-only. Switch networks before creating it.');
+      const fd = new FormData($<HTMLFormElement>('#v3f'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const raw = Number(fd.get('amount'));
+      if (!Number.isFinite(raw) || raw <= 0 || raw * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH contribution amount.');
+      const rate = Number(fd.get('retention'));
+      if (!Number.isFinite(rate) || rate < 0 || rate > 50) throw new Error('Retention must be between 0% and 50%.');
+      const draft = { version: 3 as const, name: String(fd.get('name')).trim(), network, members,
+        contribution: BigInt(Math.round(raw * 1e8)), maxFee: BigInt(String(fd.get('fee') || '0')),
+        retentionBps: BigInt(Math.round(rate * 100)) };
+      if (!wallet.address(network)) { openWalletModal(); throw new Error('Connect your Selene wallet to create the circle.'); }
+      err.textContent = 'Preparing ACR v3 genesis and member receipt NFTs…';
+      const g = await planV3Genesis(draft, wallet.address(network)!);
+      err.textContent = 'Approve the ACR v3 creation transaction in Selene…';
+      await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create ACR v3 Ajo circle "${draft.name}"`, network);
+      err.textContent = 'Verifying the on-chain state NFT and every member receipt…';
+      const created = await readV3Circle(g.params);
+      const circleTokens = created.utxos.filter(u => u.token?.category === g.params.stateCategory);
+      if (created.credits.length !== members.length || created.credits.some(credit => credit !== 0n) ||
+          circleTokens.length !== members.length + 1 || created.stateSatoshis < 1000n ||
+          circleTokens.some(u => u.satoshis < 1000n || u.token?.amount !== 0n)) {
+        throw new Error('Genesis was broadcast, but the ACR v3 state/receipt set did not match the expected layout. Do not invite members; preserve the transaction ID and investigate.');
+      }
+      saveV3Circle(g.params);
+      location.hash = `#/v3/${encodeV3Link(g.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+async function renderV3Circle(encoded: string) {
+  let p: V3CircleParams;
+  try { p = decodeV3Link(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  if (p.network !== 'chipnet') { app.innerHTML = '<section class="card"><p class="err">ACR v3 circles are Chipnet-only.</p><a href="#/">Back home</a></section>'; return; }
+  saveV3Circle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  const rate = p.retentionBps ?? 2000n;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · ACR v3 member-credit circle</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${bch(p.contribution)} BCH each per round</p><p class="small muted">Automatic retention: ${Number(rate) / 100}% · Category: <code>${esc(p.stateCategory)}</code></p><div id="v3status"><p class="muted">Reading member receipts…</p></div><div class="actions"><button class="ghost" id="v3refresh">Refresh</button><button class="ghost" id="v3copy">Copy invite link</button></div><div id="v3depositArea">${myIndex >= 0 ? `<label>Deposit amount (BCH)<input id="v3depositAmount" inputmode="decimal" value="${bch(p.contribution)}"/></label><button class="btn" id="v3deposit">Add credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect the wallet registered for a member slot to add member-specific credit.</p>'}</div><p class="err" id="v3err"></p><p class="muted small">Every payout retains the agreed percentage for the winner's future contribution. Experimental Chipnet feature; no cancellation. Never use real BCH.</p></section>`;
+  $('#v3copy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#v3status');
+    try {
+      const state = await readV3Circle(p);
+      const gross = BigInt(p.members.length) * p.contribution;
+      const retained = gross * rate / 10_000n;
+      const net = gross - retained - p.maxFee;
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>Gross payout</span><b>${bch(gross)} BCH</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><div class="note"><b>ACR payout preview</b><br/>Retained: ${bch(retained)} BCH (${Number(rate) / 100}%)<br/>Recipient receives up to ${bch(net)} BCH after the configured fee cap.</div><h3>Verified on-chain member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${bch(credit)} BCH</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'All members independently have enough credit for this round.' : 'Payout is locked until every member has at least one full contribution in their own receipt.'}</p><button class="btn" id="v3payout" ${state.ready ? '' : 'disabled'}>Pay out with ACR</button>`;
+      $('#v3payout').onclick = async () => {
+        try { $('#v3err').textContent = 'Preparing ACR payout…'; const result = await planV3Payout(p); const provider = await getProvider(p.network); const txid = await provider.sendRawTransaction(result.builder.build()); $('#v3err').innerHTML = `ACR payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); }
+        catch (e: any) { $('#v3err').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#v3refresh').onclick = load;
+  const deposit = $('#v3deposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = Number($<HTMLInputElement>('#v3depositAmount').value);
+      if (!Number.isFinite(amount) || amount <= 0 || amount * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH amount.');
+      const sats = BigInt(Math.round(amount * 1e8));
+      $('#v3err').textContent = 'Preparing member-specific ACR deposit…';
+      const plan = await planV3Deposit(p, myIndex, sats, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add credit to your ACR v3 member receipt', network);
+      $('#v3err').textContent = 'Deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#v3err').textContent = String(e.message || e); }
   };
   await load();
 }
