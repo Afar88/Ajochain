@@ -13,7 +13,7 @@ import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
-import { planMockPusdAnchor, planMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_NAME, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, MOCK_PUSD_SUPPLY } from './mock-pusd';
+import { planMockPusdAnchor, planMockPusdGenesis, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_NAME, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, MOCK_PUSD_SUPPLY } from './mock-pusd';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -614,7 +614,7 @@ async function renderPusdV3Circle(encoded: string) {
 function renderMockPusdTools() {
   const category = getMockPusdCategory();
   const connectedAddress = wallet.state === 'connected' ? wallet.address('chipnet') : null;
-  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><button class="btn" id="issueMockPusd" ${network === 'chipnet' ? '' : 'disabled'}>${category ? 'Create a new tPUSD token' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
+  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><button class="btn" id="issueMockPusd" ${network === 'chipnet' && !category ? '' : 'disabled'}>${category ? 'tPUSD already configured' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
   const button = $<HTMLButtonElement>('#issueMockPusd');
   button.onclick = async () => {
     const error = $('#mockPusdError');
@@ -644,8 +644,16 @@ function renderMockPusdTools() {
       status.textContent = 'Approve transaction 2 of 2 in Selene: issue the fixed tPUSD supply.';
       const tokenTxid = await wallet.signAndBroadcast(issuance.wc, issuance.walletInputs, 'Issue fixed-supply AjoChain tPUSD', 'chipnet');
       saveMockPusdCategory(issuance.category);
-      status.innerHTML = `<p><b>tPUSD genesis broadcast successfully.</b></p><p>Token transaction: <a href="${explorerTx('chipnet', tokenTxid)}" target="_blank" rel="noopener">${esc(shortTx(tokenTxid))}</a></p><p><b>Chipnet category:</b></p><code class="addr">${esc(issuance.category)}</code><p class="small muted">1,000 tPUSD fixed supply · 6 decimals · no redemption value. PUSD ACR v3 can now use this token in this browser.</p>`;
-      button.textContent = 'Create another test token';
+      let verified = false;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        verified = await verifyMockPusdGenesis(address, issuance.category);
+        if (verified) break;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      if (!verified) throw new Error(`Genesis was broadcast, but the token output is not indexed yet. Category ${issuance.category} is saved locally; refresh and verify before creating a circle.`);
+      status.innerHTML = `<p><b>tPUSD genesis broadcast and verified.</b></p><p>Token transaction: <a href="${explorerTx('chipnet', tokenTxid)}" target="_blank" rel="noopener">${esc(shortTx(tokenTxid))}</a></p><p><b>Chipnet category:</b></p><code class="addr">${esc(issuance.category)}</code><p class="small muted">1,000 tPUSD fixed supply · 6 decimals · no redemption value. PUSD ACR v3 can now use this token in this browser.</p>`;
+      button.textContent = 'tPUSD already configured';
+      button.disabled = true;
     } catch (e: any) {
       error.textContent = String(e?.message || e);
     } finally {
