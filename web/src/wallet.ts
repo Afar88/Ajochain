@@ -12,6 +12,53 @@ export type WalletState = 'idle' | 'connecting' | 'connected' | 'reconnecting' |
 
 type Listener = () => void;
 
+const PATHS_STORAGE_KEY = 'ajochain:wizardconnect-paths:v1';
+const RECEIVE_INDEX_STORAGE_KEY = 'ajochain:wizardconnect-receive-index:v1';
+const ADDRESS_STORAGE_KEY = 'ajochain:wizardconnect-addresses:v1';
+
+function loadCachedAddress(network: Net): string | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ADDRESS_STORAGE_KEY) || '{}');
+    const address = cached?.[network];
+    return typeof address === 'string' && address.length > 10 ? address : null;
+  } catch { return null; }
+}
+
+function saveCachedAddress(network: Net, address: string) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ADDRESS_STORAGE_KEY) || '{}');
+    cached[network] = address;
+    localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(cached));
+  } catch { /* cached public address is a display fallback only */ }
+}
+
+function restorePublicPaths(mgr: DappConnectionManager) {
+  try {
+    const raw = localStorage.getItem(PATHS_STORAGE_KEY);
+    if (!raw) return;
+    const paths: any = JSON.parse(raw);
+    if (!Array.isArray(paths)) throw new Error('Invalid cached WizardConnect paths');
+    mgr.restoreSessionPaths(paths);
+  } catch {
+    // Never let stale/corrupt public derivation data block a fresh connection.
+    try { localStorage.removeItem(PATHS_STORAGE_KEY); } catch { /* best effort */ }
+  }
+}
+
+function savePublicPaths(mgr: DappConnectionManager) {
+  try {
+    const paths = mgr.getSessionPaths();
+    if (Array.isArray(paths) && paths.length) localStorage.setItem(PATHS_STORAGE_KEY, JSON.stringify(paths));
+  } catch { /* public path caching is an enhancement, not a connection requirement */ }
+}
+
+function loadReceiveIndex() {
+  try {
+    const value = Number(localStorage.getItem(RECEIVE_INDEX_STORAGE_KEY));
+    return Number.isSafeInteger(value) && value >= 0 && value <= 100000 ? value : 0;
+  } catch { return 0; }
+}
+
 /**
  * Convert CashScript's native transaction object to WizardConnect's canonical
  * relay representation. Transactions travel as raw hex; source outputs use
@@ -101,7 +148,7 @@ class WizardWallet {
   qrUri: string | null = null;
   walletName: string | null = null;
   /** Receive-address index selected by matching Selene's displayed address. */
-  receiveIndex = 0;
+  receiveIndex = loadReceiveIndex();
   error: string | null = null;
   private mgr: DappConnectionManager | null = null;
   private relay: DappRelayResult | null = null;
@@ -109,6 +156,8 @@ class WizardWallet {
   // Invalidates callbacks from managers that have been replaced or disconnected.
   private generation = 0;
   private connectionWatchdog: ReturnType<typeof setTimeout> | null = null;
+  // Foreground/focus/online can fire in quick succession on mobile browsers.
+  private lastResumeAttemptAt = 0;
 
   onChange(fn: Listener) { this.listeners.push(fn); }
   private emit() { this.listeners.forEach((f) => f()); }
@@ -136,17 +185,23 @@ class WizardWallet {
         this.state === 'connected' || this.state === 'disconnecting') return;
     this.clearConnectionWatchdog();
     this.error = null;
-    this.receiveIndex = 0;
+    // Keep the previously matched public receive index when resuming a saved session.
+    // A fresh pairing starts at index 0 and can be matched again by the user.
+    this.receiveIndex = existing ? loadReceiveIndex() : 0;
     this.state = 'connecting';
     const generation = ++this.generation;
     const icon = new URL('favicon.svg', location.href).toString();
     const mgr = new DappConnectionManager('AjoChain', icon);
+    // Restore public xpub paths before the relay handshake so cached addresses
+    // remain derivable during a page reload. These paths cannot sign or spend.
+    restorePublicPaths(mgr);
     this.mgr = mgr;
 
     mgr.on('walletready', () => {
       if (!this.isCurrent(mgr, generation)) return;
       this.clearConnectionWatchdog();
       this.walletName = mgr.walletName;
+      savePublicPaths(mgr);
       this.error = null;
       this.state = 'connected';
       this.emit();
@@ -167,9 +222,12 @@ class WizardWallet {
       this.uri = null;
       this.qrUri = null;
       this.walletName = null;
-      this.receiveIndex = 0;
+      this.receiveIndex = loadReceiveIndex();
       this.state = 'disconnected';
-      this.cleanup(mgr, relay);
+      // A dropped mobile/background relay is not the user's request to forget
+      // this wallet. Preserve the encrypted WizardConnect session so it can
+      // be resumed when the browser returns to the foreground.
+      this.cleanup(mgr, relay, false);
       this.emit();
     });
 
@@ -184,12 +242,10 @@ class WizardWallet {
       this.relay = relay;
       if (!existing) { this.uri = relay.uri; this.qrUri = relay.qrUri; }
       mgr.attachRelay(relay);
-      // Give slow mobile wallet handoffs time, but surface a recovery action
-      // instead of leaving the UI in an endless "Connecting…" state.
       this.connectionWatchdog = setTimeout(() => {
         if (!this.isCurrent(mgr, generation) || this.state !== 'connecting') return;
         this.error = existing
-          ? 'Your saved Selene session has not responded. Start a fresh pairing to reconnect.'
+          ? 'Your saved Selene session has not responded. Retry the saved session or start a fresh pairing.'
           : 'Still waiting for Selene. Keep AjoChain open, or start a fresh pairing.';
         this.emit();
       }, 20000);
@@ -220,22 +276,30 @@ class WizardWallet {
     this.qrUri = null;
     this.walletName = null;
     this.receiveIndex = 0;
+    try {
+      localStorage.removeItem(PATHS_STORAGE_KEY);
+      localStorage.removeItem(RECEIVE_INDEX_STORAGE_KEY);
+    } catch { /* best effort */ }
     this.error = null;
     this.state = 'idle';
     this.emit();
     this.connect();
   }
 
-  /** Resume a stored WizardConnect session after page reload, if one exists. */
+  /** Resume a stored WizardConnect session after reload or mobile app switching. */
   tryResume() {
-    if (this.state !== 'idle') return;
+    if (this.state !== 'idle' && this.state !== 'disconnected') return;
+    const now = Date.now();
+    if (now - this.lastResumeAttemptAt < 5000) return;
     try {
       const s = loadSession();
       if (s?.walletPublicKey) {
+        this.lastResumeAttemptAt = now;
         this.walletName = s.walletName ?? null;
         this.connect({ privateKey: s.privateKey, secret: s.secret, walletPublicKey: s.walletPublicKey });
       }
     } catch (e) {
+      this.lastResumeAttemptAt = now;
       this.error = e instanceof Error ? e.message : 'Could not restore the saved wallet session';
       this.state = 'idle';
       this.emit();
@@ -263,6 +327,11 @@ class WizardWallet {
       this.qrUri = null;
       this.walletName = null;
       this.receiveIndex = 0;
+      try {
+        localStorage.removeItem(PATHS_STORAGE_KEY);
+        localStorage.removeItem(RECEIVE_INDEX_STORAGE_KEY);
+        localStorage.removeItem(ADDRESS_STORAGE_KEY);
+      } catch { /* best effort */ }
       this.error = null;
       this.state = 'idle';
       this.emit();
@@ -272,8 +341,14 @@ class WizardWallet {
   /** WizardConnect receive address at the currently selected BIP32 address index. */
   address(network: Net): string | null {
     const pk = this.mgr?.getPubkey(0, BigInt(this.receiveIndex));
-    if (!pk) return null;
-    return pkhToAddress(hash160(pk), network);
+    if (pk) {
+      const address = pkhToAddress(hash160(pk), network);
+      saveCachedAddress(network, address);
+      return address;
+    }
+    // Keep the last verified public address visible while the mobile relay
+    // reconnects. This is display-only and does not imply an active session.
+    return loadCachedAddress(network);
   }
 
   /** Match a Selene receive address against the xpub supplied by WizardConnect. */
@@ -286,6 +361,7 @@ class WizardWallet {
       if (!pk) return null;
       if (pkhToAddress(hash160(pk), network).toLowerCase() === target) {
         this.receiveIndex = i;
+        try { localStorage.setItem(RECEIVE_INDEX_STORAGE_KEY, String(i)); } catch { /* best effort */ }
         this.emit();
         return i;
       }
@@ -308,11 +384,7 @@ class WizardWallet {
     if (typeof signedTransaction !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(signedTransaction)) {
       throw new Error('Selene did not return a valid signed transaction. The transaction was not broadcast.');
     }
-    // Decode the complete signed transaction and prove the wallet did not alter
-    // any input outpoint or output (including CashToken category/amount/NFT data).
-    // The decoder also rejects trailing bytes and malformed CashToken prefixes.
     verifySignedTransaction(signedTransaction, wcObject?.transaction);
-    // WizardConnect returns a signed transaction; broadcasting is the dapp's responsibility.
     const provider = await getProvider(network);
     return provider.sendRawTransaction(signedTransaction);
   }
