@@ -72,6 +72,10 @@ contract AjoCircleV3(
         require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
         require(tx.inputs[0].tokenAmount == 0);
 
+        bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
+        require(statePrefix == 0x53 && stateRound.length == 1);
+        int round = int(stateRound);
+        require(round >= 0 && round < memberCount);
         int pot = memberCount * contribution;
         int retained = pot * retentionBps / 10000;
         require(retained >= 0 && retained <= pot);
@@ -87,7 +91,7 @@ contract AjoCircleV3(
             int oldCredit = int(receiptCredit);
             require(oldCredit >= contribution);
             int nextCredit = oldCredit - contribution;
-            if (i == int(tx.inputs[0].nftCommitment.slice(1, 1))) {
+            if (i == round) {
                 require(nextCredit <= 9223372036854775807 - retained);
                 nextCredit = nextCredit + retained;
             }
@@ -98,10 +102,6 @@ contract AjoCircleV3(
             require(tx.outputs[receiptInput].value == tx.inputs[receiptInput].value);
         }
 
-        bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
-        require(statePrefix == 0x53 && stateRound.length == 1);
-        int round = int(stateRound);
-        require(round >= 0 && round < memberCount);
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
         require(tx.outputs[0].tokenAmount == 0);
