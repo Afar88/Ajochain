@@ -74,7 +74,7 @@ describe('AjoCirclePUSD',()=>{
 
   it('rejects the official mainnet category on Chipnet',()=>{
     const addresses=members.slice(0,2).map(m=>(encodeCashAddress({prefix:'bchtest',type:'p2pkh',payload:m.pkh}) as any).address as string);
-    expect(()=>validatePusdParams({name:'wrong network category',network:'chipnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:'2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544'})).toThrow(/mainnet category cannot be used on Chipnet/);
+    expect(()=>validatePusdParams({name:'wrong network category',network:'chipnet',members:addresses,contribution:C,stateCategory:STATE,pusdCategory:'2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544'})).toThrow(/official PUSD mainnet category cannot be used in a Chipnet circle/);
   });
 
   it('pays the full PUSD pot to all five members over five rounds',async()=>{
