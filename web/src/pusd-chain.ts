@@ -6,7 +6,7 @@ import {
 import { getProvider } from './chain';
 import { encodeCashAddress } from '@bitauth/libauth';
 import { addressToPkh } from '../../src/lib/ajo';
-import { pusdContract, PUSD_CATEGORY, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
+import { configuredPusdCategory, pusdContract, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
 import { encodeRound } from '../../src/lib/ajo';
 
 const estimateFee = (inputs:number, outputs:number) => BigInt(10 + inputs * 150 + outputs * 100 + 100);
@@ -21,7 +21,7 @@ export async function planPusdGenesis(
   const coins = walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
   const genesis = coins.find(u=>u.vout===0 && u.satoshis>=PUSD_DUST+reserveSats+1000n);
   if(!genesis) throw new Error('Wallet needs an output #0 BCH coin large enough to create the state NFT and fee reserve. Send BCH to your receive address and retry.');
-  const params:PusdCircleParams={...base,stateCategory:genesis.txid};
+  const params:PusdCircleParams={...base,stateCategory:genesis.txid,pusdCategory:base.pusdCategory ?? configuredPusdCategory(base.network)};
   const contract=pusdContract(params,provider);
   const inputs:SpendableUtxo[]=[genesis];
   let total=genesis.satoshis;
@@ -50,7 +50,7 @@ export async function planPusdContribution(
   const provider=await getProvider(params.network);
   const contract=pusdContract(params,provider);
   const walletUtxos=await provider.getUtxos(walletAddress);
-  const tokenInputs=walletUtxos.filter(u=>u.token?.category=== (params.pusdCategory??PUSD_CATEGORY) && (u.token?.amount??0n)>0n);
+  const tokenInputs=walletUtxos.filter(u=>u.token?.category=== (params.pusdCategory ?? configuredPusdCategory(params.network)) && (u.token?.amount??0n)>0n);
   const tokenTotal=tokenInputs.reduce((s,u)=>s+(u.token?.amount??0n),0n);
   if(tokenTotal<params.contribution) throw new Error(`Not enough PUSD: wallet has ${tokenTotal} base units; needs ${params.contribution}`);
   let remaining=params.contribution;
@@ -79,8 +79,8 @@ export async function planPusdContribution(
   const b=new TransactionBuilder({provider});
   for(const u of pickedTokens) b.addInput(u,placeholderP2PKHUnlocker(walletAddress));
   for(const u of bchInputs) b.addInput(u,placeholderP2PKHUnlocker(walletAddress));
-  b.addOutput({to:contract.tokenAddress,amount:hasTokenChange?tokenBacking-PUSD_DUST:tokenBacking,token:{category:params.pusdCategory??PUSD_CATEGORY,amount:params.contribution}});
-  if(hasTokenChange) b.addOutput({to:walletTokenAddress.address,amount:PUSD_DUST,token:{category:params.pusdCategory??PUSD_CATEGORY,amount:BigInt(tokenChange)}});
+  b.addOutput({to:contract.tokenAddress,amount:hasTokenChange?tokenBacking-PUSD_DUST:tokenBacking,token:{category:params.pusdCategory ?? configuredPusdCategory(params.network),amount:params.contribution}});
+  if(hasTokenChange) b.addOutput({to:walletTokenAddress.address,amount:PUSD_DUST,token:{category:params.pusdCategory ?? configuredPusdCategory(params.network),amount:BigInt(tokenChange)}});
   b.addOutput({to:contract.address,amount:reserveSats});
   if(change>=546n) b.addOutput({to:walletAddress,amount:change});
   const walletInputs=Array.from({length:pickedTokens.length+bchInputs.length},(_,i)=>i);
