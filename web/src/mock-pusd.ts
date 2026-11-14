@@ -17,7 +17,7 @@ export const MOCK_PUSD_STORAGE_KEY = 'ajo-mock-pusd-category';
 /** Parse a user-entered tPUSD amount into 6-decimal base units. */
 export function parseMockPusdAmount(input: string): bigint {
   const value = input.trim();
-  if (!/^\\d+(?:\\.\\d{1,6})?$/.test(value)) {
+  if (!/^\d+(?:\.\d{1,6})?$/.test(value)) {
     throw new Error('Enter a valid amount with up to 6 decimal places.');
   }
   const [whole, fraction = ''] = value.split('.');
