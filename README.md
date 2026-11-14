@@ -30,7 +30,7 @@ A new ACR v3 contract path is being developed separately from the deployed V1/V2
 
 BCH ACR v3 has a separate contract and transaction planner. PUSD ACR v3 has member receipts plus a PUSD pool reconciled against the sum of receipt credits; it accepts a separately verified Chipnet token category or the locally issued test-only tPUSD category. PUSD ACR v3 does not yet support cancellation/refunds or member replacement.
 
-See [ACR accounting rules](docs/AUTOMATIC_CONTRIBUTION_RETENTION.md) and [PUSD ACR v3 security notes](docs/PUSD_ACR_V3_SECURITY_NOTES.md). Do not use real BCH or PUSD. The test-token setup and limitations are documented in [MOCK_PUSD_CHIPNET.md](docs/MOCK_PUSD_CHIPNET.md).
+See [ACR accounting rules](docs/AUTOMATIC_CONTRIBUTION_RETENTION.md) and [PUSD ACR v3 security notes](docs/PUSD_ACR_V3_SECURITY_NOTES.md). Do not use real BCH or PUSD. The test-token setup and limitations are documented in [MOCK_PUSD_CHIPNET.md](docs/MOCK_PUSD_CHIPNET.md); the hands-on [Chipnet tester checklist](docs/CHIPNET_TESTER_CHECKLIST.md) covers issuer setup, token distribution, deposits, payout, and rollover verification.
 
 ## Getting started
 
