@@ -171,7 +171,7 @@ wallet.onChange(() => {
   const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
     (wallet.state === 'idle' && previousState === 'disconnecting');
   if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
-      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/') || location.hash.startsWith('#/v3/'))) route();
+      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/') || location.hash.startsWith('#/v3/') || location.hash.startsWith('#/pv3/'))) route();
 });
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
@@ -614,12 +614,14 @@ function renderMine() {
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
   const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
   const v3List: string[] = JSON.parse(localStorage.getItem('ajo-v3-circles') || '[]');
+  const pv3List: string[] = JSON.parse(localStorage.getItem('ajo-pusd-v3-circles') || '[]');
   const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH · Classic</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">V1</span></li>`; } catch { return ''; } }).join('');
   const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Legacy PUSD</span></li>`; } catch { return ''; } }).join('');
   const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag green">V2</span></li>`; } catch { return ''; } }).join('');
   const v3Items = v3List.map((e) => { try { const p = decodeV3Link(e); return '<li><span class="av">◎</span><span class="who"><b><a href="#/v3/' + e + '">' + esc(p.name) + '</a></b><small>Chipnet · ' + p.members.length + ' members · ' + bch(p.contribution) + ' BCH · ' + (Number(p.retentionBps ?? 2000n) / 100) + '% ACR retention</small></span><span class="tag green">ACR V3</span></li>'; } catch { return ''; } }).join('');
-  const hasCircles = Boolean((bchItems + pusdItems + v2Items + v3Items).trim());
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v3/create">+ New ACR circle</a></div>${hasCircles ? `<ul class="members circle-list">${v3Items}${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+  const pv3Items = pv3List.map((e) => { try { const p = decodePusdV3Link(e); return '<li><span class="av">$</span><span class="who"><b><a href="#/pv3/' + e + '">' + esc(p.name) + '</a></b><small>Chipnet · ' + p.members.length + ' members · PUSD member credits · ' + (Number(p.retentionBps ?? 2000n) / 100) + '% retention</small></span><span class="tag green">PUSD ACR V3</span></li>'; } catch { return ''; } }).join('');
+  const hasCircles = Boolean((bchItems + pusdItems + v2Items + v3Items + pv3Items).trim());
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v3/create">+ BCH ACR</a> <a class="btn sm ghost" href="#/pv3/create">+ PUSD ACR</a></div>${hasCircles ? `<ul class="members circle-list">${pv3Items}${v3Items}${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
   $('#restoreCircleBtn').onclick = () => {
     const field = $<HTMLInputElement>('#restoreCircleLink');
     const error = $('#restoreCircleError');
@@ -629,7 +631,7 @@ function renderMine() {
       if (!raw) throw new Error('Paste the original circle invite link first.');
       let hash = raw;
       try { hash = new URL(raw).hash || raw; } catch { /* accept a hash fragment */ }
-      const match = hash.match(/#\/(c|p|v2|v3)\/([A-Za-z0-9_-]+)(?:\?manual=1)?$/);
+      const match = hash.match(/#\/(c|p|v2|v3|pv3)\/([A-Za-z0-9_-]+)(?:\?manual=1)?$/);
       if (!match) throw new Error('That link does not contain a recognised AjoChain circle route.');
       const [, kind, encoded] = match;
       if (kind === 'c') {
@@ -642,8 +644,10 @@ function renderMine() {
         location.hash = `#/p/${encoded}`;
       } else if (kind === 'v2') {
         const p = decodeV2Link(encoded); saveV2Circle(p); location.hash = `#/v2/${encoded}`;
-      } else {
+      } else if (kind === 'v3') {
         const p = decodeV3Link(encoded); saveV3Circle(p); location.hash = `#/v3/${encoded}`;
+      } else {
+        const p = decodePusdV3Link(encoded); savePusdV3Circle(p); location.hash = `#/pv3/${encoded}`;
       }
     } catch (e: any) { error.textContent = String(e.message || e); }
   };
@@ -658,6 +662,8 @@ function route() {
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
   if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
+  if (h === '#/pv3/create') return renderPusdV3Create();
+  if (h.startsWith('#/pv3/')) return renderPusdV3Circle(h.slice(5));
   if (h === '#/v3/create') return renderV3Create();
   if (h.startsWith('#/v3/')) return renderV3Circle(h.slice(4));
   if (h === '#/v2/create') return renderV2Create();
