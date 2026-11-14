@@ -62,8 +62,7 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(1, 0n) } } })
       .addOutput({ to: (encodeCashAddress({ prefix: 'bchtest', type: 'p2pkhWithTokens', payload: members[0].pkh }) as any).address, amount: 1_000n, token: { category: PUSD, amount: 160_000n } })
       .addOutput({ to: contract.tokenAddress, amount: 2_000n, token: { category: PUSD, amount: 90_000n } })
-      .addOutput({ to: contract.address, amount: 10_000n })
-      .addOutput({ to: regular, amount: 7_000n });
+      .addOutput({ to: contract.address, amount: 10_000n });
     await builder.send();
 
     const remaining = await contract.getUtxos();
@@ -101,7 +100,8 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '530001' } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(0, C) } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: PUSD, amount: C } })
-      .addOutput({ to: contract.address, amount: 10_000n });
+      .addOutput({ to: contract.address, amount: 10_000n })
+      .addOutput({ to: regular, amount: 7_000n });
     await builder.send();
 
     const after = await contract.getUtxos();
@@ -143,7 +143,8 @@ describe('AjoCirclePUSDV3 ACR covenant', () => {
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'minting', commitment: '530001' } } })
       .addOutput({ to: contract.tokenAddress, amount: 1_000n, token: { category: STATE, amount: 0n, nft: { capability: 'none', commitment: receipt(1, C) } } })
       .addOutput({ to: contract.tokenAddress, amount: 2_000n, token: { category: PUSD, amount: 2n * C } })
-      .addOutput({ to: contract.address, amount: 10_000n });
+      .addOutput({ to: contract.address, amount: 10_000n })
+      .addOutput({ to: regular, amount: 7_000n });
     await builder.send();
 
     const after = await contract.getUtxos();
