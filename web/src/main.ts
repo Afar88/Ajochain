@@ -8,7 +8,7 @@ import { wallet } from './wallet';
 import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
 import { MockNetworkProvider } from 'cashscript';
 import { verifyClassicCircle } from '../../src/lib/recovery';
-import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
+import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, validatePusdParams, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 
@@ -377,7 +377,88 @@ function renderMine() {
   const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Legacy PUSD</span></li>`; } catch { return ''; } }).join('');
   const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag green">V2</span></li>`; } catch { return ''; } }).join('');
   const hasCircles = Boolean((bchItems + pusdItems + v2Items).trim());
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a></div>${hasCircles ? `<ul class="members circle-list">${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a></div>${hasCircles ? `<ul class="members circle-list">${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Portable circle backup</h3><p class="muted small">Move your saved circle list to another phone or browser. Export a backup here, then import that file on the other device. This does not move funds or change any circle contract.</p><div class="backup-actions"><button class="ghost" id="exportCircleBackup">Export backup</button><button class="ghost" id="chooseCircleBackup">Import backup</button><input id="circleBackupFile" type="file" accept="application/json,.json" hidden /></div><p class="muted small">The file contains shareable circle details, including member addresses. Keep it private. It never contains wallet keys or seed phrases.</p><p class="err" id="circleBackupError" role="status"></p><h3>Restore with an invite link</h3><p class="muted small">You can also paste one original AjoChain invite URL to restore a single circle.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+  const backupError = $('#circleBackupError');
+  const readList = (key: string): string[] => {
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+      throw new Error('Saved circle data is damaged. Export is unavailable until it is repaired.');
+    }
+    return value;
+  };
+  $('#exportCircleBackup').onclick = () => {
+    backupError.textContent = '';
+    try {
+      const backup = {
+        format: 'ajochain-circle-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        circles: {
+          classicBch: readList('ajo-circles'),
+          legacyPusd: readList('ajo-pusd-circles'),
+          v2: readList('ajo-v2-circles'),
+        },
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ajochain-circle-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e: any) {
+      backupError.textContent = String(e.message || e);
+    }
+  };
+  $('#chooseCircleBackup').onclick = () => $<HTMLInputElement>('#circleBackupFile').click();
+  $<HTMLInputElement>('#circleBackupFile').onchange = async (event) => {
+    backupError.textContent = '';
+    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 512 * 1024) throw new Error('Backup file is too large (maximum 512 KB).');
+      const data = JSON.parse(await file.text());
+      if (!data || data.format !== 'ajochain-circle-backup' || data.version !== 1 ||
+          !data.circles || typeof data.circles !== 'object') {
+        throw new Error('This is not a supported AjoChain backup file.');
+      }
+      const groups = [
+        { key: 'classicBch', storage: 'ajo-circles', validate: (encoded: string) => { decodeCircle(encoded); } },
+        { key: 'legacyPusd', storage: 'ajo-pusd-circles', validate: (encoded: string) => validatePusdParams(decodePusdLink(encoded)) },
+        { key: 'v2', storage: 'ajo-v2-circles', validate: (encoded: string) => { decodeV2Link(encoded); } },
+      ];
+      const parsed: Array<{ storage: string; values: string[] }> = [];
+      let total = 0;
+      for (const group of groups) {
+        const values = data.circles[group.key] ?? [];
+        if (!Array.isArray(values) || !values.every((value) => typeof value === 'string')) {
+          throw new Error(`Backup section "${group.key}" is invalid.`);
+        }
+        if (values.length > 20) throw new Error(`Backup section "${group.key}" exceeds the 20-circle limit.`);
+        for (const encoded of values) {
+          if (!encoded || encoded.length > 8192) throw new Error('A circle entry in this backup is invalid or too large.');
+          group.validate(encoded);
+        }
+        total += values.length;
+        parsed.push({ storage: group.storage, values });
+      }
+      if (total > 60) throw new Error('This backup contains too many circles.');
+      // Validate every entry before changing any browser storage.
+      for (const group of parsed) {
+        const existing = readList(group.storage);
+        const merged = [...new Set([...group.values, ...existing])].slice(0, 20);
+        localStorage.setItem(group.storage, JSON.stringify(merged));
+      }
+      route();
+      $('#circleBackupError').textContent = `Backup imported. ${total} circle entr${total === 1 ? 'y' : 'ies'} checked; your dashboard has been updated.`;
+    } catch (e: any) {
+      backupError.textContent = String(e.message || e);
+    } finally {
+      (event.currentTarget as HTMLInputElement).value = '';
+    }
+  };
   $('#restoreCircleBtn').onclick = () => {
     const field = $<HTMLInputElement>('#restoreCircleLink');
     const error = $('#restoreCircleError');
