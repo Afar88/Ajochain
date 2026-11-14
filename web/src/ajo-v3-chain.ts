@@ -134,7 +134,7 @@ export async function planV3Deposit(params: V3CircleParams, memberIndex: number,
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const all = await contract.getUtxos();
-  assertV2UtxoSet(all, params.stateCategory, params.members.length);
+  assertV3UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
   if (!state) throw new Error('V3 state NFT not found.');
   const receipt = findReceipt(all, params.stateCategory, memberIndex);
@@ -161,7 +161,7 @@ export async function planV3Payout(params: V3CircleParams) {
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const all = await contract.getUtxos();
-  assertV2UtxoSet(all, params.stateCategory, params.members.length);
+  assertV3UtxoSet(all, params.stateCategory, params.members.length);
   const state = findState(all, params.stateCategory);
   if (!state) throw new Error('V3 state NFT not found.');
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
@@ -193,7 +193,7 @@ export async function readV3Circle(params: V3CircleParams) {
   const provider = await getProvider(params.network);
   const contract = contractFor(params, provider);
   const utxos = await contract.getUtxos();
-  assertV2UtxoSet(utxos, params.stateCategory, params.members.length);
+  assertV3UtxoSet(utxos, params.stateCategory, params.members.length);
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
   if (round < 0 || round >= params.members.length) throw new Error('Invalid v3 payout round.');
