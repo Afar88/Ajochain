@@ -246,3 +246,25 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   b.addOutput({ to: contract.address, amount: reserve.satoshis - fee });
   return { builder: b, round, recipient: params.members[round], grossPayout, retained, retentionBps, payout: recipientTokenAmount, fee, credits: receipts.map((_, i) => credits[i] - params.contribution + (i === round ? retained : 0n)) };
 }
+
+
+export async function readPusdV3Circle(params: PusdV3Params) {
+  validate(params);
+  const provider = await getProvider(params.network);
+  const pkhs = params.members.map(addressToPkh);
+  while (pkhs.length < 5) pkhs.push(new Uint8Array(20));
+  const contract = new Contract(artifact, [
+    pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4], BigInt(params.members.length),
+    params.contribution, params.maxFee, params.retentionBps ?? DEFAULT_RETENTION_BPS,
+    hexToBin(params.stateCategory).reverse(), hexToBin(categoryFor(params)).reverse(),
+  ] as any, { provider, contractType: 'p2sh32' });
+  const utxos = await contract.getUtxos();
+  const { state, receipts, pool } = assertStateSet(utxos, params);
+  const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
+  if (round < 0 || round >= params.members.length) throw new Error('PUSD v3 circle is complete or has invalid round state.');
+  const credits = receipts.map(r => creditFrom(r.token!.nft!.commitment));
+  const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
+  if (pool && pool.token!.amount !== totalCredits) throw new Error('PUSD pool and member receipts do not reconcile.');
+  const ready = !!pool && totalCredits === pool.token!.amount && credits.every(credit => credit >= params.contribution);
+  return { contract, utxos, state, receipts, pool, round, credits, totalCredits, ready, recipient: params.members[round] };
+}
