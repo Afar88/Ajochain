@@ -14,10 +14,17 @@ export const PUSD_CHIPNET_CATEGORY = (import.meta.env.VITE_PUSD_CHIPNET_CATEGORY
 
 export function configuredPusdCategory(network: Net): string {
   if (network === 'mainnet') return PUSD_MAINNET_CATEGORY;
-  if (!PUSD_CHIPNET_CATEGORY) throw new Error('No verified Chipnet PUSD category is configured. Set VITE_PUSD_CHIPNET_CATEGORY only after verifying the token genesis and issuer.');
-  if (PUSD_CHIPNET_CATEGORY === PUSD_MAINNET_CATEGORY) throw new Error('The PUSD mainnet category cannot be used on Chipnet.');
-  if (!/^[0-9a-f]{64}$/.test(PUSD_CHIPNET_CATEGORY)) throw new Error('VITE_PUSD_CHIPNET_CATEGORY must be a 32-byte hexadecimal CashToken category.');
-  return PUSD_CHIPNET_CATEGORY;
+  // A locally-created tPUSD category is accepted only as an explicit,
+  // browser-local Chipnet test configuration. A build-time official category
+  // takes precedence. This value is never used on Mainnet.
+  const localMock = typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('ajo-mock-pusd-category') ?? '').trim().toLowerCase()
+    : '';
+  const category = PUSD_CHIPNET_CATEGORY || localMock;
+  if (!category) throw new Error('No Chipnet PUSD test category is configured. Create AjoChain tPUSD from the Test Token Tools page, or configure an independently verified Chipnet token category.');
+  if (category === PUSD_MAINNET_CATEGORY) throw new Error('The PUSD mainnet category cannot be used on Chipnet.');
+  if (!/^[0-9a-f]{64}$/.test(category)) throw new Error('The configured Chipnet token category must be 32-byte hexadecimal.');
+  return category;
 }
 
 function categoryFor(p: PusdCircleParams): string {
