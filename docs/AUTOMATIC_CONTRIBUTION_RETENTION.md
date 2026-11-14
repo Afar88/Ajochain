@@ -1,6 +1,6 @@
 # Automatic Contribution Retention (ACR)
 
-Status: implementation work in progress. This specification defines the shared accounting rule for new BCH and PUSD circles. It does not alter existing circles, deploy a covenant, or authorize mainnet use.
+Status: Chipnet implementation branch. BCH ACR v3 and PUSD ACR v3 covenant sources, transaction planners, UI routes, and tests have been added. This is still an unaudited prototype; no merge, deployment, or mainnet activation is authorized.
 
 ## Product rule
 
@@ -41,7 +41,7 @@ Use a new covenant version for ACR-enabled circles. Do not modify the bytecode/a
 
 ## PUSD implementation
 
-Use a separate new PUSD member-credit covenant version. The legacy pooled PUSD contract cannot safely attribute retained funds to the winning member. PUSD v3 must maintain a member receipt for every participant and a PUSD token pool whose token amount is reconciled to the sum of receipt credits. Deposits must prove the registered member's token-aware funding address. Payout must debit one contribution from every receipt, add T to the winner's receipt, pay P − T PUSD to the recipient, and leave exactly T PUSD backing the new member-credit total in the pool. The PUSD BCH backing must be preserved; only the separately designated token-free BCH reserve may pay miner fees.
+Use a separate new PUSD member-credit covenant version. The legacy pooled PUSD contract cannot safely attribute retained funds to the winning member. PUSD ACR v3 maintains a member receipt for every participant and one PUSD pool UTXO whose token amount is reconciled to the sum of receipt credits. Deposits prove the registered member's token-aware funding address. Payout debits one contribution from every receipt, adds T to the winner's receipt, pays P − T PUSD to the recipient, and leaves exactly T PUSD backing the new member-credit total in the pool. The PUSD BCH backing is preserved; only the separately designated token-free BCH reserve may pay miner fees. This version does not implement cancellation/refunds or member replacement; see `docs/PUSD_ACR_V3_SECURITY_NOTES.md`.
 
 ## UX
 
@@ -56,11 +56,9 @@ Do not label an off-chain estimate as contract-enforced. Display the ACR protect
 
 ## Rollout and safety gates
 
-1. Implement and test the BCH ACR covenant and planner.
-2. Implement the separate PUSD ACR covenant, receipt/pool reconciliation, and planner.
-3. Add adversarial tests for wrong member, wrong asset category, receipt mismatch, pool mismatch, shortfall, overflow, rounding, output redirection, excess rollover, and replay.
-4. Compile artifacts and run unit tests, typecheck, and web build.
-5. Test both flows with multiple independent Selene wallets on Chipnet, including raw transaction inspection.
-6. Obtain an independent covenant security review.
+1. Finish adversarial tests for wrong member, wrong asset category, receipt mismatch, pool mismatch, shortfall, overflow, rounding, output redirection, excess rollover, and replay.
+2. Compile artifacts and pass the complete unit-test, typecheck, and web-build workflow.
+3. Test both flows with multiple independent Selene wallets on Chipnet, including raw transaction inspection.
+4. Obtain an independent covenant security review.
 
 No merge, deployment, or mainnet activation is included in this work.
