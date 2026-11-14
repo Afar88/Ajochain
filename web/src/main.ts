@@ -13,6 +13,7 @@ import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
+import { planMockPusdAnchor, planMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_NAME, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, MOCK_PUSD_SUPPLY } from './mock-pusd';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -539,7 +540,7 @@ function renderPusdV3Create() {
   let configError = '';
   try { category = configuredPusdCategory('chipnet'); } catch (e: any) { configError = String(e.message || e); }
   const addr = wallet.state === 'connected' ? wallet.address(network) : null;
-  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until the Chipnet token category is independently verified and configured.</p>` : `<p class="small muted">Verified PUSD category: <code>${esc(category)}</code></p>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0.01" max="50" step="0.01" value="20" required/></label><label>BCH reserve top-up and maximum miner fee (sats)<input name="fee" type="number" min="5000" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until a Chipnet test category is configured.</p><a class="btn ghost sm" href="#/tools/mock-pusd">Create mock tPUSD</a>` : `<p class="small muted">Configured Chipnet test-token category: <code>${esc(category)}</code></p><a class="ghost btnlink" href="#/tools/mock-pusd">Manage test token</a>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0.01" max="50" step="0.01" value="20" required/></label><label>BCH reserve top-up and maximum miner fee (sats)<input name="fee" type="number" min="5000" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
   $('#pv3add').onclick = () => { const el = $('#pv3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
   $<HTMLFormElement>('#pv3f').onsubmit = async ev => {
     ev.preventDefault(); const err = $('#pv3err'); err.textContent = '';
@@ -610,6 +611,49 @@ async function renderPusdV3Circle(encoded: string) {
   await load();
 }
 
+function renderMockPusdTools() {
+  const category = getMockPusdCategory();
+  const connectedAddress = wallet.state === 'connected' ? wallet.address('chipnet') : null;
+  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><button class="btn" id="issueMockPusd" ${network === 'chipnet' ? '' : 'disabled'}>${category ? 'Create a new tPUSD token' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
+  const button = $<HTMLButtonElement>('#issueMockPusd');
+  button.onclick = async () => {
+    const error = $('#mockPusdError');
+    const status = $('#mockPusdStatus');
+    error.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('Switch to Chipnet before creating the test token.');
+      const address = wallet.address('chipnet');
+      if (!address) { openWalletModal(); throw new Error('Connect your Selene wallet first.'); }
+      button.disabled = true;
+      status.textContent = 'Preparing the CashToken genesis anchor…';
+      const anchor = await planMockPusdAnchor(address);
+      status.textContent = 'Approve transaction 1 of 2 in Selene: create the genesis anchor.';
+      const anchorTxid = await wallet.signAndBroadcast(anchor.wc, anchor.walletInputs, 'Create tPUSD genesis anchor', 'chipnet');
+      status.textContent = `Anchor broadcast (${shortTx(anchorTxid)}). Waiting for Chipnet indexing…`;
+      let issuance: Awaited<ReturnType<typeof planMockPusdGenesis>> | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        try {
+          issuance = await planMockPusdGenesis(address, anchorTxid);
+          break;
+        } catch (e: any) {
+          if (!String(e?.message || e).includes('not indexed yet')) throw e;
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+      if (!issuance) throw new Error('The anchor is not indexed yet. Refresh this page and retry after the transaction appears in the Chipnet explorer.');
+      status.textContent = 'Approve transaction 2 of 2 in Selene: issue the fixed tPUSD supply.';
+      const tokenTxid = await wallet.signAndBroadcast(issuance.wc, issuance.walletInputs, 'Issue fixed-supply AjoChain tPUSD', 'chipnet');
+      saveMockPusdCategory(issuance.category);
+      status.innerHTML = `<p><b>tPUSD genesis broadcast successfully.</b></p><p>Token transaction: <a href="${explorerTx('chipnet', tokenTxid)}" target="_blank" rel="noopener">${esc(shortTx(tokenTxid))}</a></p><p><b>Chipnet category:</b></p><code class="addr">${esc(issuance.category)}</code><p class="small muted">1,000 tPUSD fixed supply · 6 decimals · no redemption value. PUSD ACR v3 can now use this token in this browser.</p>`;
+      button.textContent = 'Create another test token';
+    } catch (e: any) {
+      error.textContent = String(e?.message || e);
+    } finally {
+      button.disabled = network !== 'chipnet';
+    }
+  };
+}
+
 function renderMine() {
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
@@ -663,6 +707,7 @@ function route() {
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
   if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
+  if (h === '#/tools/mock-pusd') return renderMockPusdTools();
   if (h === '#/pv3/create') return renderPusdV3Create();
   if (h.startsWith('#/pv3/')) return renderPusdV3Circle(h.slice(6));
   if (h === '#/v3/create') return renderV3Create();
