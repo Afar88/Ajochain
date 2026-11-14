@@ -111,7 +111,7 @@ async function deposit(provider: MockNetworkProvider, contract: Contract, escrow
   await builder.send();
 }
 
-async function payout(provider: MockNetworkProvider, contract: Contract, escrows: Contract[]) {
+async function payout(provider: MockNetworkProvider, contract: Contract, escrows: Contract[], recipientIndex = 0) {
   const { state, receipts } = await current(provider, contract, escrows);
   const escrowUtxos = await Promise.all(escrows.map(async escrow =>
     (await escrow.getUtxos()).find(u => u.token?.category === PUSD) as SpendableUtxo,
@@ -141,7 +141,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, escrows
     .addOutput({ to: escrows[0].address, amount: escrowUtxos[0].satoshis })
     .addOutput({ to: escrows[1].address, amount: escrowUtxos[1].satoshis })
     .addOutput({
-      to: tokenAddress(members[0].pkh), amount: DUST,
+      to: tokenAddress(members[recipientIndex].pkh), amount: DUST,
       token: { category: PUSD, amount: 2n * CONTRIBUTION },
     })
     .addOutput({ to: reserveAddress, amount: 15_000n });
@@ -149,6 +149,23 @@ async function payout(provider: MockNetworkProvider, contract: Contract, escrows
 }
 
 describe('AjoCirclePUSDV2 member escrow covenant', () => {
+  it('rejects payout when any member is short of one contribution', async () => {
+    const provider = new MockNetworkProvider();
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
+    await deposit(provider, contract, escrows, 0);
+    await expect(payout(provider, contract, escrows)).rejects.toThrow();
+  });
+
+  it('rejects payout to a member other than the scheduled recipient', async () => {
+    const provider = new MockNetworkProvider();
+    const { contract, escrows } = makeContract(provider);
+    addGenesis(provider, contract, escrows);
+    await deposit(provider, contract, escrows, 0);
+    await deposit(provider, contract, escrows, 1);
+    await expect(payout(provider, contract, escrows, 1)).rejects.toThrow();
+  });
+
   it('pays the scheduled member and debits each member receipt and escrow atomically', async () => {
     const provider = new MockNetworkProvider();
     const { contract, escrows } = makeContract(provider);
