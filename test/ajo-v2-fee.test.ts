@@ -101,7 +101,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, treasur
     .addOutput({
       to: contract.tokenAddress,
       amount: state.satoshis - gross,
-      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '540101' } },
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '54' + ((round + 1) % members.length).toString(16).padStart(2, '0') + '01' } },
     });
   for (let i = 0; i < receipts.length; i++) {
     builder.addOutput({
