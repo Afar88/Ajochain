@@ -233,13 +233,13 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   const grossPayout = BigInt(params.members.length) * params.contribution;
   const retentionBps = params.retentionBps ?? DEFAULT_RETENTION_BPS;
   const retained = (grossPayout / 10_000n) * retentionBps + ((grossPayout % 10_000n) * retentionBps / 10_000n);
-  if (retained <= 0n || retained >= grossPayout) throw new Error('ACR retention leaves no valid PUSD payout at this contribution size.');
+  if (retained < 0n || retained >= grossPayout) throw new Error('ACR retention leaves no valid PUSD payout at this contribution size.');
   if (pool.satoshis < 2n * DUST) throw new Error('PUSD pool does not contain enough BCH backing for recipient and rollover outputs.');
   const reserve = all.filter(u => !u.token && u.satoshis >= DUST + params.maxFee)
     .sort((a,b) => a.satoshis > b.satoshis ? -1 : 1)[0];
   if (!reserve) throw new Error('PUSD circle fee reserve is insufficient for payout.');
-  const fee = feeEstimate(params.members.length + 3, params.members.length + 4);
-  if (fee > params.maxFee || reserve.satoshis - fee < DUST) throw new Error('PUSD payout fee exceeds the configured reserve or maxFee.');
+  const estimatedFee = feeEstimate(params.members.length + 3, params.members.length + 4);
+  if (estimatedFee > params.maxFee || reserve.satoshis - estimatedFee < DUST) throw new Error('PUSD payout fee exceeds the configured reserve or maxFee.');
   const recipientTokenAmount = grossPayout - retained;
   const poolAfter = totalCredits - grossPayout + retained;
   if (poolAfter <= 0n) throw new Error('ACR rollover pool must remain positive.');
