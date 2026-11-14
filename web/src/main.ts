@@ -1,4 +1,5 @@
 import './style.css';
+import './ui-refresh.css';
 import QRCode from 'qrcode';
 import {
   circleContract, circleStatus, buildPayout, encodeCircle, decodeCircle, addressToPkh,
@@ -742,7 +743,7 @@ function renderMine() {
 function route() {
   renderHeader();
   const h = location.hash || '#/';
-  document.querySelectorAll('nav a').forEach((a) => { const href = (a as HTMLAnchorElement).getAttribute('href')!; const active = href === '#/' ? h === '#/' : h.startsWith(href); a.classList.toggle('on', active); });
+  document.querySelectorAll('nav a').forEach((a) => { const href = (a as HTMLAnchorElement).getAttribute('href')!; const isCreateRoute = h === '#/create' || h.startsWith('#/create/') || h.startsWith('#/create?') || h === '#/v2/create' || h === '#/v3/create' || h === '#/pv3/create' || h === '#/tools/mock-pusd'; const active = href === '#/' ? h === '#/' : href === '#/create' ? isCreateRoute : h.startsWith(href); a.classList.toggle('on', active); });
   if (h === '#/create' || h.startsWith('#/create?')) return renderCreate();
   if (h.startsWith('#/create/bch')) return renderBchCreate();
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
