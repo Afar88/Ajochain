@@ -53,7 +53,7 @@ contract AjoCirclePUSDV2(
         require(statePrefix == 0x54);
         require(stateRound.length == 1 && hasPaid.length == 1);
         require(int(stateRound) >= 0 && int(stateRound) < memberCount);
-        require(hasPaid == 0x00);
+        require(int(hasPaid) == 0 || int(hasPaid) == 1);
 
         bytes receiptPrefix, bytes receiptData = tx.inputs[1].nftCommitment.split(1);
         bytes receiptMember, bytes receiptCredit = receiptData.split(1);
@@ -71,8 +71,12 @@ contract AjoCirclePUSDV2(
 
         require(tx.inputs[2].tokenCategory == 0x || tx.inputs[2].tokenCategory == pusdCategory);
         require(tx.inputs[2].tokenAmount == oldCredit);
+        require(tx.inputs[2].nftCapability == 0x);
+        require(tx.inputs[2].nftCommitment == 0x);
         require(tx.inputs[3].tokenCategory == pusdCategory);
         require(tx.inputs[3].tokenAmount == amount);
+        require(tx.inputs[3].nftCapability == 0x);
+        require(tx.inputs[3].nftCommitment == 0x);
         require(tx.inputs[3].lockingBytecode == new LockingBytecodeP2PKH(member));
         require(tx.inputs[4].tokenCategory == 0x);
         require(tx.inputs[4].lockingBytecode == new LockingBytecodeP2PKH(initiator));
@@ -92,6 +96,8 @@ contract AjoCirclePUSDV2(
         require(tx.outputs[2].lockingBytecode == tx.inputs[2].lockingBytecode);
         require(tx.outputs[2].tokenCategory == pusdCategory);
         require(tx.outputs[2].tokenAmount == oldCredit + amount);
+        require(tx.outputs[2].nftCapability == 0x);
+        require(tx.outputs[2].nftCommitment == 0x);
         // Preserve all BCH backing from both the old escrow and new token input.
         require(tx.outputs[2].value == tx.inputs[2].value + tx.inputs[3].value);
 
@@ -138,6 +144,8 @@ contract AjoCirclePUSDV2(
             totalCredits = totalCredits + credit;
             require(tx.inputs[escrowInput].tokenCategory == pusdCategory);
             require(tx.inputs[escrowInput].tokenAmount == credit);
+            require(tx.inputs[escrowInput].nftCapability == 0x);
+            require(tx.inputs[escrowInput].nftCommitment == 0x);
 
             require(tx.outputs[receiptInput].lockingBytecode == tx.inputs[receiptInput].lockingBytecode);
             require(tx.outputs[receiptInput].tokenCategory == stateCategory);
@@ -149,6 +157,8 @@ contract AjoCirclePUSDV2(
             int remaining = credit - contribution;
             require(tx.outputs[escrowOutput].lockingBytecode == tx.inputs[escrowInput].lockingBytecode);
             require(tx.outputs[escrowOutput].tokenAmount == remaining);
+            require(tx.outputs[escrowOutput].nftCapability == 0x);
+            require(tx.outputs[escrowOutput].nftCommitment == 0x);
             if (remaining > 0) {
                 require(tx.outputs[escrowOutput].tokenCategory == pusdCategory);
             } else {
@@ -178,6 +188,8 @@ contract AjoCirclePUSDV2(
         require(tx.outputs[payoutOutput].lockingBytecode == new LockingBytecodeP2PKH(recipient));
         require(tx.outputs[payoutOutput].tokenCategory == pusdCategory);
         require(tx.outputs[payoutOutput].tokenAmount == memberCount * contribution);
+        require(tx.outputs[payoutOutput].nftCapability == 0x);
+        require(tx.outputs[payoutOutput].nftCommitment == 0x);
         require(tx.outputs[payoutOutput].value == 1000);
         require(tx.outputs[feeChangeOutput].lockingBytecode == new LockingBytecodeP2PKH(initiator));
         require(tx.outputs[feeChangeOutput].tokenCategory == 0x);
