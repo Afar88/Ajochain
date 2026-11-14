@@ -125,3 +125,69 @@ export function getMockPusdCategory(): string | null {
   const value = localStorage.getItem(MOCK_PUSD_STORAGE_KEY);
   return value && /^[0-9a-f]{64}$/i.test(value) ? value.toLowerCase() : null;
 }
+
+
+/** Build a wallet-approved transfer of existing tPUSD. This never mints tokens. */
+export async function planMockPusdTransfer(
+  walletAddress: string,
+  recipientAddress: string,
+  category: string,
+  amount: bigint,
+) {
+  if (!/^[0-9a-f]{64}$/i.test(category)) throw new Error('Invalid tPUSD category ID.');
+  if (amount <= 0n || amount > MOCK_PUSD_SUPPLY) throw new Error('Enter a positive tPUSD amount within the fixed supply.');
+  const provider = await getProvider('chipnet');
+  // Validate and convert the recipient to a Chipnet CashTokens address.
+  const recipient = tokenAwareAddress(recipientAddress);
+  const sender = tokenAwareAddress(walletAddress);
+  const tokenCoins = (await provider.getUtxos(sender))
+    .filter(u => u.token?.category.toLowerCase() === category.toLowerCase() && !u.token.nft)
+    .sort((a, b) => a.token!.amount > b.token!.amount ? -1 : a.token!.amount < b.token!.amount ? 1 : 0);
+  const selectedTokens: SpendableUtxo[] = [];
+  let selectedAmount = 0n;
+  for (const coin of tokenCoins) {
+    selectedTokens.push(coin);
+    selectedAmount += coin.token!.amount;
+    if (selectedAmount >= amount) break;
+  }
+  if (selectedAmount < amount) throw new Error('The connected wallet does not hold enough tPUSD for this transfer.');
+  const tokenChange = selectedAmount - amount;
+  const tokenOutputCount = tokenChange > 0n ? 2 : 1;
+  const feeCoins = (await provider.getUtxos(walletAddress))
+    .filter(u => !u.token && !selectedTokens.some(t => t.txid === u.txid && t.vout === u.vout))
+    .sort((a, b) => a.satoshis > b.satoshis ? -1 : a.satoshis < b.satoshis ? 1 : 0);
+  const feeInputs: SpendableUtxo[] = [];
+  let feeTotal = 0n;
+  for (const coin of feeCoins) {
+    feeInputs.push(coin);
+    feeTotal += coin.satoshis;
+    const fee = feeEstimate(selectedTokens.length + feeInputs.length, tokenOutputCount + 1);
+    if (feeTotal >= fee + CHANGE_DUST) break;
+  }
+  const fee = feeEstimate(selectedTokens.length + feeInputs.length, tokenOutputCount + 1);
+  const bchChange = feeTotal - fee;
+  if (!feeInputs.length || bchChange < CHANGE_DUST) {
+    throw new Error('The issuer wallet needs separate Chipnet BCH UTXOs to pay the transfer miner fee.');
+  }
+  const builder = new TransactionBuilder({ provider });
+  selectedTokens.forEach(u => builder.addInput(u, placeholderP2PKHUnlocker(walletAddress)));
+  feeInputs.forEach(u => builder.addInput(u, placeholderP2PKHUnlocker(walletAddress)));
+  builder.addOutput({
+    to: recipient,
+    amount: TOKEN_DUST,
+    token: { category: category.toLowerCase(), amount },
+  });
+  if (tokenChange > 0n) {
+    builder.addOutput({
+      to: sender,
+      amount: TOKEN_DUST,
+      token: { category: category.toLowerCase(), amount: tokenChange },
+    });
+  }
+  builder.addOutput({ to: walletAddress, amount: bchChange });
+  const wc = builder.generateWcTransactionObject({
+    broadcast: false,
+    userPrompt: `Send ${amount.toString()} tPUSD on Chipnet (existing supply only)`,
+  });
+  return { wc, walletInputs: selectedTokens.concat(feeInputs).map((_, i) => i), amount, tokenChange };
+}
