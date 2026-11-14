@@ -7,7 +7,25 @@ import { hexToBin, encodeCashAddress } from '@bitauth/libauth';
 import pusdArtifactJson from '../../contracts/AjoCirclePUSD.json' with { type: 'json' };
 import { addressToPkh, type CircleParams, type Net, EMPTY_PKH } from './ajo';
 
-export const PUSD_CATEGORY = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
+export const PUSD_MAINNET_CATEGORY = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
+// Set only after independently verifying the official Chipnet test-token category.
+// Intentionally empty by default: the mainnet category must never be reused on Chipnet.
+export const PUSD_CHIPNET_CATEGORY = (import.meta.env.VITE_PUSD_CHIPNET_CATEGORY ?? '').trim().toLowerCase();
+
+export function configuredPusdCategory(network: Net): string {
+  if (network === 'mainnet') return PUSD_MAINNET_CATEGORY;
+  if (!PUSD_CHIPNET_CATEGORY) throw new Error('No verified Chipnet PUSD category is configured. Set VITE_PUSD_CHIPNET_CATEGORY only after verifying the token genesis and issuer.');
+  if (PUSD_CHIPNET_CATEGORY === PUSD_MAINNET_CATEGORY) throw new Error('The PUSD mainnet category cannot be used on Chipnet.');
+  if (!/^[0-9a-f]{64}$/.test(PUSD_CHIPNET_CATEGORY)) throw new Error('VITE_PUSD_CHIPNET_CATEGORY must be a 32-byte hexadecimal CashToken category.');
+  return PUSD_CHIPNET_CATEGORY;
+}
+
+function categoryFor(p: PusdCircleParams): string {
+  const category = (p.pusdCategory ?? configuredPusdCategory(p.network)).toLowerCase();
+  if (p.network === 'chipnet' && category === PUSD_MAINNET_CATEGORY) throw new Error('The official PUSD mainnet category cannot be used in a Chipnet circle.');
+  if (!/^[0-9a-f]{64}$/.test(category)) throw new Error('PUSD category must be 32-byte hex');
+  return category;
+}
 export const PUSD_DUST = 1000n;
 export const PUSD_DEFAULT_RESERVE = 20_000n;
 export type PusdParams = CircleParams & { pusdCategory?: string };
@@ -28,8 +46,7 @@ export function validatePusdParams(p: PusdCircleParams): void {
   p.members.forEach(addressToPkh);
   if (p.contribution <= 0n) throw new Error('PUSD contribution must be positive');
   if (!/^[0-9a-f]{64}$/i.test(p.stateCategory)) throw new Error('stateCategory must be 32-byte hex');
-  const category = p.pusdCategory ?? PUSD_CATEGORY;
-  if (!/^[0-9a-f]{64}$/i.test(category)) throw new Error('PUSD category must be 32-byte hex');
+  const category = categoryFor(p);
   if (category.toLowerCase() === p.stateCategory.toLowerCase()) throw new Error('State and PUSD categories must differ');
 }
 
@@ -41,7 +58,7 @@ export function pusdConstructorArgs(p: PusdCircleParams) {
     pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4],
     BigInt(p.members.length), p.contribution,
     hexToBin(p.stateCategory).reverse(),
-    hexToBin(p.pusdCategory ?? PUSD_CATEGORY).reverse(),
+    hexToBin(categoryFor(p)).reverse(),
   ] as const;
 }
 
@@ -51,7 +68,7 @@ export function pusdContract(p: PusdCircleParams, provider: NetworkProvider): Co
   });
 }
 
-export function isPusdUtxo(u: SpendableUtxo, category = PUSD_CATEGORY): boolean {
+export function isPusdUtxo(u: SpendableUtxo, category: string): boolean {
   return !!u.token && u.token.category.toLowerCase() === category.toLowerCase() && u.token.amount > 0n;
 }
 
@@ -73,7 +90,7 @@ export interface PusdStatus {
 
 export function pusdStatus(p: PusdCircleParams, utxos: SpendableUtxo[]): PusdStatus {
   validatePusdParams(p);
-  const category = p.pusdCategory ?? PUSD_CATEGORY;
+  const category = categoryFor(p)
   const stateUtxo = utxos.find(u => isPusdStateUtxo(u, p.stateCategory));
   const tokenUtxos = utxos.filter(u => isPusdUtxo(u, category));
   const reserveUtxos = utxos.filter(u => !u.token && u.satoshis >= PUSD_DUST);
