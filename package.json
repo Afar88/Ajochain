@@ -6,6 +6,7 @@
     "compile": "cashc contracts/AjoCircle.cash -o contracts/AjoCircle.json && cashc contracts/AjoCirclePUSD.cash -o contracts/AjoCirclePUSD.json && cashc contracts/AjoCircleV2.cash -o contracts/AjoCircleV2.json && cashc contracts/AjoCircleV3.cash -o contracts/AjoCircleV3.json && cashc contracts/AjoCirclePUSDV3.cash -o contracts/AjoCirclePUSDV3.json",
     "test": "cashc contracts/AjoCirclePUSD.cash -o contracts/AjoCirclePUSD.json && cashc contracts/AjoCircleV2.cash -o contracts/AjoCircleV2.json && cashc contracts/AjoCircleV3.cash -o contracts/AjoCircleV3.json && cashc contracts/AjoCirclePUSDV3.cash -o contracts/AjoCirclePUSDV3.json && vitest run",
     "dev": "vite",
+    "prebuild": "npm run compile",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p ."
