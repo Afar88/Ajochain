@@ -620,7 +620,8 @@ function renderMockPusdTools() {
     const value = String(new FormData($<HTMLFormElement>('#importMockPusd')).get('category') || '').trim().toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(value)) { $('#mockPusdError').textContent = 'Enter a valid 32-byte Chipnet category ID.'; return; }
     try { saveMockPusdCategory(value); location.reload(); } catch (e: any) { $('#mockPusdError').textContent = String(e?.message || e); }
-  };\n  $<HTMLFormElement>('#sendMockPusd').onsubmit = async ev => {
+  };
+  $<HTMLFormElement>('#sendMockPusd').onsubmit = async ev => {
     ev.preventDefault();
     const error = $('#mockPusdError');
     error.textContent = '';
