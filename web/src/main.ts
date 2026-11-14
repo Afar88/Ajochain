@@ -655,6 +655,7 @@ function renderMockPusdTools() {
     error.textContent = '';
     try {
       if (network !== 'chipnet') throw new Error('Switch to Chipnet before creating the test token.');
+      if (getMockPusdCategory()) throw new Error('A tPUSD category is already configured in this browser. Issuance is one-time; use the existing category or clear it only after a deliberate reset.');
       const address = wallet.address('chipnet');
       if (!address) { openWalletModal(); throw new Error('Connect your Selene wallet first.'); }
       button.disabled = true;
@@ -692,7 +693,7 @@ function renderMockPusdTools() {
     } catch (e: any) {
       error.textContent = String(e?.message || e);
     } finally {
-      button.disabled = network !== 'chipnet';
+      button.disabled = network !== 'chipnet' || Boolean(getMockPusdCategory());
     }
   };
 }
