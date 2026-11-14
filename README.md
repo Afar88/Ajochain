@@ -18,6 +18,20 @@ The app's featured experience is now the **V2 member-credit beta**: each member 
 
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
+## Automatic Contribution Retention (ACR) v3 — Chipnet prototype
+
+A new ACR v3 contract path is being developed separately from the deployed V1/V2 circles:
+
+- New circles default to **20% payout retention**, committed to the circle at creation (configurable from 0–50% for BCH; PUSD requires a positive retained token amount).
+- On every payout, the scheduled member receives the gross pot less retention and the miner fee (BCH), or gross PUSD less retention (PUSD; BCH fees use a separate reserve).
+- The retained amount is credited to that winner's member receipt and remains locked for their future contributions. Excess credit carries forward.
+- Every member must independently have at least one full contribution before a payout. Another member's surplus cannot cover a shortfall.
+- Existing V1/V2 circles are not migrated or modified. ACR v3 is experimental, unaudited, and Chipnet-only.
+
+BCH ACR v3 has a separate contract and transaction planner. PUSD ACR v3 has member receipts plus a PUSD pool reconciled against the sum of receipt credits; it remains unavailable until a verified Chipnet PUSD category is configured. PUSD ACR v3 does not yet support cancellation/refunds or member replacement.
+
+See [ACR accounting rules](docs/AUTOMATIC_CONTRIBUTION_RETENTION.md) and [PUSD ACR v3 security notes](docs/PUSD_ACR_V3_SECURITY_NOTES.md). Do not use real BCH or PUSD.
+
 ## Getting started
 
 1. Open the [AjoChain app](https://afar88.github.io/Ajochain/).
