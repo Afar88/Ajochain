@@ -146,7 +146,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, escrows
       token: { category: PUSD, amount: 2n * CONTRIBUTION },
     })
     .addOutput({ to: reserveAddress, amount: 15_000n });
-  await builder.withFeePerByte(1).send();
+  await builder.send();
 }
 
 describe('AjoCirclePUSDV2 member escrow covenant', () => {
