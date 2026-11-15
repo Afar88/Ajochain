@@ -1,0 +1,72 @@
+pragma cashscript ^0.14.0;
+
+// Per-member PUSD escrow sidecar. Its constructor fixes the member index, so
+// every member has a distinct P2SH32 locking bytecode. The circle covenant
+// authenticates that exact locking bytecode before accepting the escrow input.
+// The sidecar independently requires the matching state NFT and receipt in
+// the same transaction, and binds its own output to that receipt's new credit.
+contract AjoPUSDMemberEscrow(
+    bytes32 stateCategory,
+    bytes32 pusdCategory,
+    int memberCount,
+    int memberIndex
+) {
+    function attest() {
+        int escrowIndex = this.activeInputIndex;
+        require(memberCount >= 2 && memberCount <= 5);
+        require(memberIndex >= 0 && memberIndex < memberCount);
+        require(escrowIndex == 2 || escrowIndex == memberCount + memberIndex + 1);
+        require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.inputs[0].tokenAmount == 0);
+
+        int receiptIndex = 1;
+        if (escrowIndex != 2) {
+            require(tx.inputs.length == 2 * memberCount + 2);
+            receiptIndex = memberIndex + 1;
+        } else {
+            require(tx.inputs.length == 5);
+        }
+        require(tx.inputs[receiptIndex].tokenCategory == stateCategory);
+        require(tx.inputs[receiptIndex].tokenAmount == 0);
+        bytes inPrefix, bytes inData = tx.inputs[receiptIndex].nftCommitment.split(1);
+        bytes inMember, bytes inCredit = inData.split(1);
+        require(inPrefix == 0x52);
+        require(inMember.length == 1 && int(inMember) == memberIndex);
+        require(inCredit.length == 8);
+        int oldCredit = int(inCredit);
+
+        require(tx.inputs[escrowIndex].nftCommitment == 0x);
+        if (oldCredit == 0) {
+            require(tx.inputs[escrowIndex].tokenCategory == 0x);
+            require(tx.inputs[escrowIndex].tokenAmount == 0);
+        } else {
+            require(tx.inputs[escrowIndex].tokenCategory == pusdCategory);
+            require(tx.inputs[escrowIndex].tokenAmount == oldCredit);
+        }
+
+        bytes outPrefix, bytes outData = tx.outputs[receiptIndex].nftCommitment.split(1);
+        bytes outMember, bytes outCredit = outData.split(1);
+        require(outPrefix == 0x52);
+        require(outMember.length == 1 && int(outMember) == memberIndex);
+        require(outCredit.length == 8);
+        int newCredit = int(outCredit);
+
+        require(tx.outputs[escrowIndex].lockingBytecode == tx.inputs[escrowIndex].lockingBytecode);
+        require(tx.outputs[escrowIndex].nftCommitment == 0x);
+        require(tx.outputs[escrowIndex].tokenAmount == newCredit);
+        if (newCredit == 0) {
+            require(tx.outputs[escrowIndex].tokenCategory == 0x);
+        } else {
+            require(tx.outputs[escrowIndex].tokenCategory == pusdCategory);
+        }
+        if (escrowIndex == 2) {
+            require(tx.inputs[3].tokenCategory == pusdCategory);
+            require(tx.inputs[3].nftCommitment == 0x);
+            require(newCredit == oldCredit + tx.inputs[3].tokenAmount);
+            require(tx.outputs[escrowIndex].value == tx.inputs[escrowIndex].value + tx.inputs[3].value);
+        } else {
+            require(newCredit <= oldCredit);
+            require(tx.outputs[escrowIndex].value == tx.inputs[escrowIndex].value);
+        }
+    }
+}

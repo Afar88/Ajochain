@@ -101,7 +101,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, treasur
     .addOutput({
       to: contract.tokenAddress,
       amount: state.satoshis - gross,
-      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '540101' } },
+      token: { category: CATEGORY, amount: 0n, nft: { capability: 'minting', commitment: '54' + ((round + 1) % members.length).toString(16).padStart(2, '0') + '01' } },
     });
   for (let i = 0; i < receipts.length; i++) {
     builder.addOutput({
@@ -121,7 +121,7 @@ async function payout(provider: MockNetworkProvider, contract: Contract, treasur
 async function cancel(provider: MockNetworkProvider, contract: Contract, signer = initiator) {
   const { state, receipts } = await currentCircle(provider, contract);
   const fundingAddress = pkhToAddress(signer.pkh, 'chipnet');
-  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: 10_000n }));
+  const funding = provider.addUtxo(fundingAddress, randomUtxo({ satoshis: 20_000n }));
   const builder = new TransactionBuilder({ provider })
     .addInput(state, contract.unlock.cancel(signer.pub, signer.sig));
   builder.addInputs(receipts, contract.unlock.cancel(signer.pub, signer.sig));
@@ -132,7 +132,7 @@ async function cancel(provider: MockNetworkProvider, contract: Contract, signer 
       amount: receipts[i].satoshis + CONTRIBUTION,
     });
   }
-  builder.addOutput({ to: fundingAddress, amount: 9_000n });
+  builder.addOutput({ to: fundingAddress, amount: 15_000n });
   await builder.send();
 }
 

@@ -2,7 +2,7 @@
 
 **Rotating savings circles (Ajo / Esusu) enforced by a Bitcoin Cash covenant. No treasurer holds the money.**
 
-🔗 **Live app:** https://afar88.github.io/Ajochain/ (Chipnet by default; create and manage BCH circles, with experimental PUSD support)
+🔗 **Live app:** https://afar88.github.io/Ajochain/ (Chipnet by default; BCH circles only)
 🏁 Built for **BCH BLAZE 2026** (DoraHacks)
 
 
@@ -22,7 +22,7 @@ The app's featured experience is now the **V2 member-credit beta**: each member 
 
 1. Open the [AjoChain app](https://afar88.github.io/Ajochain/).
 2. Leave the network on **Chipnet** for testing. Connect a WizardConnect-enabled BCH wallet.
-3. Choose **Create**, select BCH or experimental PUSD, and enter the circle details and member payout order.
+3. Choose **Create** and enter the BCH circle details and member payout order.
 4. Approve the creation transaction in your wallet. Share the generated circle link with members.
 5. Members contribute to the circle address. When the pot is full, anyone can trigger the scheduled payout.
 6. Open **My circles** to return to circles saved in this browser.
@@ -33,11 +33,18 @@ For the current limitations and rollout plan for member-level contribution recei
 ---
 
 
-### PUSD circles (experimental)
+### PUSD circles — paused
 
-AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
+PUSD transactions are currently disabled in the app. The published ParyonUSD category is identified as a Bitcoin Cash mainnet category, but this repository does not yet have independently verified Chipnet token-category evidence suitable for configuring wallet transactions. Do not copy a ticker, explorer label, or mainnet category into Chipnet configuration.
 
-PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. The experimental web flow now supports Chipnet circle creation, wallet-funded PUSD contributions, live status, and permissionless payouts. PUSD creation and contribution transactions use WizardConnect; payout uses the covenant. Tests use CashScript's MockNetworkProvider only. Cancellation still requires every member's signature and has no in-app multi-wallet signing flow. **Chipnet only; unaudited; do not use with mainnet funds.**
+A separate PUSD V2 engineering prototype is being developed on [draft PR #30](https://github.com/Afar88/Ajochain/pull/30). It uses per-member receipt NFTs and distinct member escrow covenant locks, with atomic deposit and payout transitions. The prototype is not exposed through the UI and is not ready for wallet use.
+
+- The legacy pooled PUSD cancellation method is disabled because it cannot enforce member-specific refunds.
+- PUSD V2 has no wallet transaction planner, no genesis raw-transaction verification, no completed pre-payout refund covenant, and no configured PUSD treasury destination for the approved 1% project fee.
+- The 0.02 PUSD minimum is not converted to base units until the exact Chipnet category and authenticated BCMR precision are verified.
+- Mock-provider contract tests are not a substitute for real Chipnet transactions, Selene wallet testing, or an independent security audit.
+
+**Do not create PUSD circles or send real PUSD to AjoChain.** Existing PUSD circles may be inspected, but their legacy accounting must not be treated as member-attributed balances.
 
 ## The problem
 
@@ -142,7 +149,7 @@ These are design specifications, not shipped features. The current app remains a
 
 ## Roadmap
 
-- **Stablecoin circles (PUSD / CashTokens FTs)**: experimental Chipnet UI supports creation, contributions, live status, and permissionless payouts. Real Chipnet wallet testing, cancellation signing UX, end-to-end tests against the network, and independent audit remain outstanding.
+- **Stablecoin circles (PUSD / CashTokens FTs)**: paused. PUSD V2 contract work is isolated in draft PR #30; category verification, fee/refund covenants, wallet planning, raw-transaction inspection, real Chipnet testing, and independent audit remain outstanding.
 - **Collateral / late-payer penalties**: members lock a deposit that's slashed if they skip a round after being paid.
 - **Per-member contribution receipts**: small NFTs per payment so the app can show *who* paid each round.
 - **Timed rounds** (`tx.time`), cancel builder in the UI, more members via merkle proofs, Naira price display, WhatsApp share links.

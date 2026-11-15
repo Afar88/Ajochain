@@ -105,7 +105,9 @@ CashTokens fungible amounts are integer base units; decimal display precision is
 
 - BCH V1/V2: new-circle creation guards require 200,000 sats (0.002 BCH); existing V1 circle decoding remains permissive for compatibility.
 - PUSD V1: transaction planning is paused until a verified Chipnet category is configured. Existing pooled accounting remains experimental and is not a safe basis for member-level credit.
-- PUSD V2: not yet implemented. The next implementation unit is the member escrow sidecar plus the state/receipt covenant, with atomic deposit and payout transitions. Do not expose a PUSD V2 route until those contracts, planners, raw-transaction checks, and adversarial tests are complete.
+- PUSD V2: a draft contract prototype now exists on PR #30. It includes a circle state/receipt covenant and distinct member-specific escrow sidecars; deposit and payout transitions are covered by MockNetworkProvider tests. The circle pins each member's sidecar locking bytecode, and the sidecar checks the corresponding receipt and escrow continuation.
+- PUSD V2 remains incomplete and disabled: there is no wallet transaction planner or UI route; the Chipnet PUSD category is still unverified; no PUSD treasury token destination is approved for the 1% project fee; pre-first-payout cancellation/refunds are not implemented; genesis raw-transaction inspection is absent; and no real Selene-wallet Chipnet run or independent audit has been completed.
+- Do not expose or use PUSD V2 until those gaps are closed and the adversarial tests cover the complete lifecycle.
 
 
 ## Approved product rules (2026-11-13)
