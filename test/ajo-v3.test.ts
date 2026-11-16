@@ -6,6 +6,7 @@ import {
 import { hash160, secp256k1, hexToBin } from '@bitauth/libauth';
 import artifactJson from '../contracts/AjoCircleV3.json' with { type: 'json' };
 import { pkhToAddress } from '../src/lib/ajo.js';
+import { planV3Genesis } from '../web/src/ajo-v3-chain.js';
 
 const artifact = artifactJson as unknown as Artifact;
 const CATEGORY = 'ac'.repeat(32);
@@ -96,6 +97,19 @@ describe('AjoCircleV3 BCH ACR covenant', () => {
     expect(utxos.some(u => u.token?.nft?.commitment === receipt(0, 90_000n))).toBe(true);
     expect(utxos.some(u => u.token?.nft?.commitment === receipt(1, 0n))).toBe(true);
     expect(utxos.some(u => u.token?.nft?.commitment === '5301')).toBe(true);
+  });
+
+  it('rejects Mainnet before any ACR v3 transaction planning', async () => {
+    const addresses = members.map(member => pkhToAddress(member.pkh, 'mainnet'));
+    await expect(planV3Genesis({
+      version: 3,
+      name: 'ACR v3 Chipnet-only test',
+      network: 'mainnet',
+      members: addresses,
+      contribution: CONTRIBUTION,
+      maxFee: MAX_FEE,
+      retentionBps: RETENTION_BPS,
+    }, addresses[0])).rejects.toThrow(/Chipnet-only/);
   });
 
   it('blocks payout when any member is short, even if another has excess credit', async () => {
