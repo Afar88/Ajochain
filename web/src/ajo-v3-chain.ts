@@ -27,6 +27,7 @@ export type V3CircleDraft = Omit<V3CircleParams, 'stateCategory'>;
 
 const hex = (v: Uint8Array) => Array.from(v, b => b.toString(16).padStart(2, '0')).join('');
 function validate(p: V3CircleDraft | V3CircleParams): void {
+  if (p.network !== 'chipnet') throw new Error('AjoChain ACR v3 is Chipnet-only. Mainnet is not ready or authorized for this release.');
   if (p.version !== 3 || !p.name.trim()) throw new Error('Invalid v3 circle details');
   if (p.members.length < 2 || p.members.length > 5) throw new Error('A v3 circle needs 2–5 members');
   const members = p.members.map(a => hex(addressToPkh(a)));
