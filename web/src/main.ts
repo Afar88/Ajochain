@@ -1,4 +1,5 @@
 import './style.css';
+import './ui-refresh.css';
 import QRCode from 'qrcode';
 import {
   circleContract, circleStatus, buildPayout, encodeCircle, decodeCircle, addressToPkh,
@@ -8,9 +9,12 @@ import { wallet } from './wallet';
 import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
 import { MockNetworkProvider } from 'cashscript';
 import { verifyClassicCircle } from '../../src/lib/recovery';
-import { PUSD_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, type PusdCircleParams } from '../../src/lib/pusd';
+import { configuredPusdCategory, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
+import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
+import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
+import { planMockPusdAnchor, planMockPusdGenesis, planMockPusdTransfer, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, parseMockPusdAmount } from './mock-pusd';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -173,7 +177,7 @@ wallet.onChange(() => {
   const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
     (wallet.state === 'idle' && previousState === 'disconnecting');
   if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
-      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/'))) route();
+      location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/') || location.hash.startsWith('#/v3/') || location.hash.startsWith('#/pv3/'))) route();
 });
 
 function roundTrack(names: string[], round: number | null, completed: boolean) {
@@ -195,7 +199,7 @@ function renderHome() {
     <p class="kicker">AjoChain · Bitcoin Cash savings circles</p>
     <h1>Build wealth <span>better, together.</span></h1>
     <p class="lede">Create a group savings circle, invite your people, and follow a transparent payout order secured by Bitcoin Cash smart contracts.</p>
-    <div class="cta"><a class="btn" href="#/v2/create">Create a new circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">View my circles</a></div>
+    <div class="cta"><a class="btn" href="#/v2/create">Create a new circle <span aria-hidden="true">→</span></a><a class="btn ghost" href="#/mine">View my circles</a><a class="ghost btnlink" href="#/v3/create">Try ACR v3 beta</a></div>
     <div class="home-stats">
       <div><b>${v2Count + bchCount + pusdCount}</b><span>Circles saved on this device</span></div>
       <div><b>Chipnet</b><span>Test network by default</span></div>
@@ -235,21 +239,50 @@ const memberRow = (v: string, i: number) => `<input class="maddr" name="m" place
 function saveCircle(p: CircleParams) { const list: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]'); const e = encodeCircle(p); if (!list.includes(e)) list.unshift(e); localStorage.setItem('ajo-circles', JSON.stringify(list.slice(0, 20))); }
 
 const encodePusdLink = (p: PusdCircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({ ...p, contribution: p.contribution.toString() })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const decodePusdLink = (s: string): PusdCircleParams => { const raw = decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))); const p = JSON.parse(raw); return { ...p, contribution: BigInt(p.contribution) }; };
+const decodePusdLink = (s: string): PusdCircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(s) || s.length > 4096) throw new Error('Invalid PUSD circle link.');
+  const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = decodeURIComponent(escape(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))));
+  const value = JSON.parse(raw);
+  if (!value || value.network !== 'chipnet' || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60 ||
+      typeof value.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(value.stateCategory) ||
+      typeof value.pusdCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(value.pusdCategory) ||
+      !Array.isArray(value.members) || value.members.length < 2 || value.members.length > 5 ||
+      !value.members.every((member: unknown) => typeof member === 'string') ||
+      typeof value.contribution !== 'string' || !/^\d+$/.test(value.contribution)) {
+    throw new Error('This is not a valid Chipnet PUSD circle link.');
+  }
+  const p: PusdCircleParams = { ...value, contribution: BigInt(value.contribution) };
+  // Invite links are untrusted input: accept only the currently configured token category.
+  // With Chipnet PUSD unconfigured, legacy links intentionally remain unavailable.
+  const configuredCategory = configuredPusdCategory(p.network);
+  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
+    throw new Error('This invite uses an unconfigured PUSD category. Only the configured token category is accepted.');
+  }
+  validatePusdParams(p);
+  return p;
+};
 function renderPusdCreate() {
   const addr = wallet.state === 'connected' ? wallet.address(network) : null;
-  app.innerHTML = `<section class="card"><p class="kicker">PUSD circle · experimental</p><div class="status-row"><h2>Create a PUSD Ajo circle</h2><span class="tag gold">Chipnet only</span></div><p class="muted">PUSD uses a CashTokens state NFT plus a separate BCH reserve for miner fees. It is unaudited and not enabled for Mainnet transactions.</p>${network === 'mainnet' ? '<div class="note"><b>Mainnet selected.</b> The network switch is shared with BCH, but PUSD creation stays blocked until its Mainnet contract/category is verified.</div>' : ''}<form id="pf"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD Ajo"/></label><label>Contribution per member (PUSD base units)<input name="amount" type="number" min="1" step="1" required value="1000000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pmembers">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="padd">+ Add member</button></fieldset><label>BCH fee reserve (sats)<input name="reserve" type="number" min="1000" step="1" value="${PUSD_DEFAULT_RESERVE}"/></label><p class="err" id="perr"></p><button class="btn" type="submit" ${network === 'mainnet' ? 'disabled' : ''}>${network === 'mainnet' ? 'PUSD Mainnet unavailable' : addr ? 'Create PUSD circle' : 'Connect wallet & create'}</button></form></section>`;
+  let categoryReady = false;
+  let categoryNotice = '';
+  try { configuredPusdCategory(network); categoryReady = true; }
+  catch (e: any) { categoryNotice = String(e.message || e); }
+  const disabled = network !== 'chipnet' || !categoryReady;
+  app.innerHTML = `<section class="card"><p class="kicker">PUSD circle · experimental</p><div class="status-row"><h2>Create a PUSD Ajo circle</h2><span class="tag gold">Chipnet only</span></div><p class="muted">PUSD uses a CashTokens state NFT plus a separate BCH reserve for miner fees. It is unaudited and not enabled for Mainnet transactions.</p>${network === 'mainnet' ? '<div class="note"><b>Mainnet selected.</b> The official PUSD mainnet category is recorded separately, but PUSD transactions remain disabled until contract and security reviews are complete.</div>' : !categoryReady ? `<div class="note"><b>Chipnet token not configured.</b> ${esc(categoryNotice)} AjoChain will not silently substitute the mainnet category.</div>` : ''}<form id="pf"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD Ajo"/></label><label>Contribution per member (PUSD base units)<input name="amount" type="number" min="1" step="1" required value="1000000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pmembers">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="padd">+ Add member</button></fieldset><label>BCH fee reserve (sats)<input name="reserve" type="number" min="1000" step="1" value="${PUSD_DEFAULT_RESERVE}"/></label><p class="err" id="perr"></p><button class="btn" type="submit" ${disabled ? 'disabled' : ''}>${network === 'mainnet' ? 'PUSD Mainnet unavailable' : !categoryReady ? 'Chipnet token not configured' : addr ? 'Create PUSD circle' : 'Connect wallet & create'}</button></form></section>`;
   $('#padd').onclick = () => { const el = $('#pmembers'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
-  $<HTMLFormElement>('#pf').onsubmit = async (ev) => { ev.preventDefault(); const err = $('#perr'); err.textContent = ''; try { if (network !== 'chipnet') throw new Error('PUSD is currently available on Chipnet only. Switch to Chipnet to create or use a PUSD circle.'); const fd = new FormData($<HTMLFormElement>('#pf')); const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean); if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses'); const amount = BigInt(String(fd.get('amount'))); if (amount <= 0n) throw new Error('Contribution must be positive'); const base = { name: String(fd.get('name')), network, members, contribution: amount, pusdCategory: PUSD_CATEGORY }; const a = wallet.state === 'connected' ? wallet.address(network) : null; if (!a) { openWalletModal(); throw new Error('Connect your wallet first'); } err.textContent = 'Preparing PUSD state NFT and BCH fee reserve…'; const g = await planPusdGenesis(base, a, BigInt(String(fd.get('reserve')))); err.textContent = 'Approve the creation transaction in your wallet…'; await wallet.signAndBroadcast(g.wc, g.walletInputs, 'Create PUSD Ajo circle', g.params.network); const p = g.params; savePusdCircle(p); location.hash = `#/p/${encodePusdLink(p)}`; } catch (e: any) { err.textContent = String(e.message || e); } };
+  $<HTMLFormElement>('#pf').onsubmit = async (ev) => { ev.preventDefault(); const err = $('#perr'); err.textContent = ''; try { if (network !== 'chipnet') throw new Error('PUSD is currently available on Chipnet only. Switch to Chipnet to create or use a PUSD circle.'); const pusdCategory = configuredPusdCategory(network); const fd = new FormData($<HTMLFormElement>('#pf')); const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean); if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses'); const amount = BigInt(String(fd.get('amount'))); if (amount <= 0n) throw new Error('Contribution must be positive'); const base = { name: String(fd.get('name')), network, members, contribution: amount, pusdCategory }; const a = wallet.state === 'connected' ? wallet.address(network) : null; if (!a) { openWalletModal(); throw new Error('Connect your wallet first'); } err.textContent = 'Preparing PUSD state NFT and BCH fee reserve…'; const g = await planPusdGenesis(base, a, BigInt(String(fd.get('reserve')))); err.textContent = 'Approve the creation transaction in your wallet…'; await wallet.signAndBroadcast(g.wc, g.walletInputs, 'Create PUSD Ajo circle', g.params.network); const p = g.params; savePusdCircle(p); location.hash = `#/p/${encodePusdLink(p)}`; } catch (e: any) { err.textContent = String(e.message || e); } };
 }
 function savePusdCircle(p: PusdCircleParams) { const list: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]'); const e = encodePusdLink(p); if (!list.includes(e)) list.unshift(e); localStorage.setItem('ajo-pusd-circles', JSON.stringify(list.slice(0, 20))); }
 
 async function renderPusdCircle(encoded: string) {
-  let p: PusdCircleParams; try { p = decodePusdLink(encoded); } catch { app.innerHTML = '<section class="card"><p class="err">Invalid PUSD circle link.</p></section>'; return; }
-  // Opening an invite link adds this circle to the visitor's local dashboard.
-  savePusdCircle(p);
+  let p: PusdCircleParams; try { p = decodePusdLink(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
+  // Decode and validate the untrusted invite before saving it or changing networks.
   if (p.network !== network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
   if (p.network === 'mainnet') { app.innerHTML = `<section class="card"><span class="tag gold">Experimental</span><h2>${esc(p.name)}</h2><div class="note"><b>PUSD Mainnet is not enabled.</b> This circle was created with an unsupported network setting. Switch to Chipnet or use a verified PUSD Mainnet deployment.</div><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
+  try { validatePusdParams(p); } catch (e: any) { app.innerHTML = `<section class="card"><h2>${esc(p.name)}</h2><p class="err">${esc(String(e.message || e))}</p><a class="btn" href="#/mine">Back to my circles</a></section>`; return; }
+  // Persist only after all invite and network/category checks have succeeded.
+  savePusdCircle(p);
   const offlineContract = pusdContract(p, offline(p.network)); let provider: Awaited<ReturnType<typeof getProvider>> | null = null; let contract = offlineContract;
   app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · experimental PUSD</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Test only</span></div><p class="muted">${p.members.length} members · ${p.contribution.toString()} PUSD base units each per round</p><p>Contract: <code class="addr">${contract.address}</code></p><div id="pstatus"><p class="muted">Reading circle UTXOs…</p></div><div class="actions"><button class="ghost sm" id="prefresh">Refresh</button>${wallet.state === 'connected' ? '<button class="sm" id="pcontribute">Contribute PUSD</button>' : ''}</div><p class="err" id="plerr"></p></section>`;
   const load = async () => { try { if (!provider) { provider = await getProvider(p.network); contract = pusdContract(p, provider); } const utxos = await contract.getUtxos(); const s = pusdStatus(p, utxos); $('#pstatus').innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${s.round === null ? 'Not started' : `${s.round + 1} / ${p.members.length}`}</b></div><div><span>Collected</span><b>${s.available.toString()}</b></div><div><span>Fee reserve</span><b>${s.reserveUtxos.length} UTXOs</b></div></div><p><b>Next recipient:</b> ${s.round === null ? '—' : `Member ${s.round + 1}`}</p><div class="actions"><button class="btn" id="ppayout" ${s.ready ? '' : 'disabled'}>Pay out PUSD round</button></div>`; $('#ppayout').onclick = async () => { try { const result = buildPusdPayout(p, contract, utxos, provider!); const txid = await provider!.sendRawTransaction(result.builder.build()); $('#plerr').innerHTML = `PUSD payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); } catch (e: any) { $('#plerr').textContent = String(e.message || e); } }; } catch (e: any) { $('#pstatus').innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; } };
@@ -373,15 +406,335 @@ async function renderV2Circle(encoded: string) {
   await load();
 }
 
+const encodeV3Link = (p: V3CircleParams) => btoa(unescape(encodeURIComponent(JSON.stringify({
+  ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString(),
+  retentionBps: (p.retentionBps ?? 2000n).toString(),
+})))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const decodeV3Link = (encoded: string): V3CircleParams => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('This is not a valid ACR v3 circle link.');
+  let p: any;
+  try { p = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))))); }
+  catch { throw new Error('This is not a valid ACR v3 circle link.'); }
+  if (!p || p.version !== 3 || p.network !== 'chipnet' || typeof p.name !== 'string' || !p.name.trim() ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee) ||
+      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
+    throw new Error('This is not a valid ACR v3 circle link.');
+  }
+  const params: V3CircleParams = {
+    ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee),
+    retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps),
+  };
+  const gross = BigInt(params.members.length) * params.contribution;
+  const retained = gross * (params.retentionBps ?? 2000n) / 10_000n;
+  if (params.contribution < 1000n || params.maxFee < 0n || params.retentionBps! < 0n ||
+      params.retentionBps! > 5000n || params.maxFee < 5000n || params.maxFee > 100_000_000n) {
+    throw new Error('This ACR v3 link contains invalid contribution, retention or fee limits.');
+  }
+  const memberKeys = params.members.map(address => Array.from(addressToPkh(address)).join(','));
+  if (new Set(memberKeys).size !== memberKeys.length) throw new Error('This ACR v3 link contains duplicate member addresses.');
+  return params;
+};
+function saveV3Circle(p: V3CircleParams) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-v3-circles') || '[]');
+  const encoded = encodeV3Link(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-v3-circles', JSON.stringify(list.slice(0, 20)));
+}
+function renderV3Create() {
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">BCH ACR v3 · Chipnet beta</p><h2>Create a protected circle</h2><p class="note"><b>Chipnet only.</b> New V3 circles automatically retain a percentage of every payout for the winner's next contribution. This is experimental and unaudited; never use real BCH.</p><form id="v3f"><label>Circle name<input name="name" required maxlength="60" value="Our Ajo ACR"/></label><label>Contribution per member (BCH)<input name="amount" required inputmode="decimal" value="0.001"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="v3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="v3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0" max="50" step="1" value="20" required/></label><label>Maximum miner fee per transaction (sats)<input name="fee" type="number" min="0" step="1" value="10000"/></label><p class="small muted">The retention rate is fixed for this circle once created. Excess member credit carries forward.</p><p class="err" id="v3err"></p><button class="btn" type="submit" ${network === 'chipnet' ? '' : 'disabled'}>${network === 'chipnet' ? 'Create ACR v3 circle' : 'Switch to Chipnet to continue'}</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  $('#v3add').onclick = () => { const el = $('#v3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#v3f').onsubmit = async ev => {
+    ev.preventDefault(); const err = $('#v3err'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('ACR v3 is Chipnet-only. Switch networks before creating it.');
+      const fd = new FormData($<HTMLFormElement>('#v3f'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const raw = Number(fd.get('amount'));
+      if (!Number.isFinite(raw) || raw <= 0 || raw * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH contribution amount.');
+      const rate = Number(fd.get('retention'));
+      if (!Number.isFinite(rate) || rate <= 0 || rate > 50) throw new Error('PUSD retention must be greater than 0% and at most 50%.');
+      const draft = { version: 3 as const, name: String(fd.get('name')).trim(), network, members,
+        contribution: BigInt(Math.round(raw * 1e8)), maxFee: BigInt(String(fd.get('fee') || '0')),
+        retentionBps: BigInt(Math.round(rate * 100)) };
+      if (!wallet.address(network)) { openWalletModal(); throw new Error('Connect your Selene wallet to create the circle.'); }
+      err.textContent = 'Preparing ACR v3 genesis and member receipt NFTs…';
+      const g = await planV3Genesis(draft, wallet.address(network)!);
+      err.textContent = 'Approve the ACR v3 creation transaction in Selene…';
+      await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create ACR v3 Ajo circle "${draft.name}"`, network);
+      err.textContent = 'Verifying the on-chain state NFT and every member receipt…';
+      const created = await readV3Circle(g.params);
+      const circleTokens = created.utxos.filter(u => u.token?.category === g.params.stateCategory);
+      if (created.credits.length !== members.length || created.credits.some(credit => credit !== 0n) ||
+          circleTokens.length !== members.length + 1 || created.stateSatoshis < 1000n ||
+          circleTokens.some(u => u.satoshis < 1000n || u.token?.amount !== 0n)) {
+        throw new Error('Genesis was broadcast, but the ACR v3 state/receipt set did not match the expected layout. Do not invite members; preserve the transaction ID and investigate.');
+      }
+      saveV3Circle(g.params);
+      location.hash = `#/v3/${encodeV3Link(g.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+async function renderV3Circle(encoded: string) {
+  let p: V3CircleParams;
+  try { p = decodeV3Link(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  if (p.network !== 'chipnet') { app.innerHTML = '<section class="card"><p class="err">ACR v3 circles are Chipnet-only.</p><a href="#/">Back home</a></section>'; return; }
+  saveV3Circle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  const rate = p.retentionBps ?? 2000n;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · ACR v3 member-credit circle</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${bch(p.contribution)} BCH each per round</p><p class="small muted">Automatic retention: ${Number(rate) / 100}% · Category: <code>${esc(p.stateCategory)}</code></p><div id="v3status"><p class="muted">Reading member receipts…</p></div><div class="actions"><button class="ghost" id="v3refresh">Refresh</button><button class="ghost" id="v3copy">Copy invite link</button></div><div id="v3depositArea">${myIndex >= 0 ? `<label>Deposit amount (BCH)<input id="v3depositAmount" inputmode="decimal" value="${bch(p.contribution)}"/></label><button class="btn" id="v3deposit">Add credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect the wallet registered for a member slot to add member-specific credit.</p>'}</div><p class="err" id="v3err"></p><p class="muted small">Every payout retains the agreed percentage for the winner's future contribution. Experimental Chipnet feature; no cancellation. Never use real BCH.</p></section>`;
+  $('#v3copy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#v3status');
+    try {
+      const state = await readV3Circle(p);
+      const gross = BigInt(p.members.length) * p.contribution;
+      const retained = gross * rate / 10_000n;
+      const net = gross - retained - p.maxFee;
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>Gross payout</span><b>${bch(gross)} BCH</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><div class="note"><b>ACR payout preview</b><br/>Retained: ${bch(retained)} BCH (${Number(rate) / 100}%)<br/>Recipient receives up to ${bch(net)} BCH after the configured fee cap.</div><h3>Verified on-chain member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${bch(credit)} BCH</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'All members independently have enough credit for this round.' : 'Payout is locked until every member has at least one full contribution in their own receipt.'}</p><button class="btn" id="v3payout" ${state.ready ? '' : 'disabled'}>Pay out with ACR</button>`;
+      $('#v3payout').onclick = async () => {
+        try { $('#v3err').textContent = 'Preparing ACR payout…'; const result = await planV3Payout(p); const provider = await getProvider(p.network); const txid = await provider.sendRawTransaction(result.builder.build()); $('#v3err').innerHTML = `ACR payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); }
+        catch (e: any) { $('#v3err').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#v3refresh').onclick = load;
+  const deposit = $('#v3deposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = Number($<HTMLInputElement>('#v3depositAmount').value);
+      if (!Number.isFinite(amount) || amount <= 0 || amount * 1e8 > Number.MAX_SAFE_INTEGER) throw new Error('Enter a valid BCH amount.');
+      const sats = BigInt(Math.round(amount * 1e8));
+      $('#v3err').textContent = 'Preparing member-specific ACR deposit…';
+      const plan = await planV3Deposit(p, myIndex, sats, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add credit to your ACR v3 member receipt', network);
+      $('#v3err').textContent = 'Deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#v3err').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
+
+const encodePusdV3Link = (p: PusdV3Params) => btoa(unescape(encodeURIComponent(JSON.stringify({
+  ...p, contribution: p.contribution.toString(), maxFee: p.maxFee.toString(),
+  retentionBps: (p.retentionBps ?? 2000n).toString(),
+})))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const decodePusdV3Link = (encoded: string): PusdV3Params => {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 4096) throw new Error('Invalid PUSD ACR v3 circle link.');
+  let p: any;
+  try { p = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))))); }
+  catch { throw new Error('Invalid PUSD ACR v3 circle link.'); }
+  if (!p || p.version !== 3 || p.network !== 'chipnet' || typeof p.name !== 'string' || !p.name.trim() ||
+      typeof p.stateCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.stateCategory) ||
+      typeof p.pusdCategory !== 'string' || !/^[0-9a-f]{64}$/i.test(p.pusdCategory) ||
+      !Array.isArray(p.members) || p.members.length < 2 || p.members.length > 5 ||
+      !p.members.every((m: unknown) => typeof m === 'string') ||
+      typeof p.contribution !== 'string' || !/^\d+$/.test(p.contribution) ||
+      typeof p.maxFee !== 'string' || !/^\d+$/.test(p.maxFee) ||
+      (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
+    throw new Error('Invalid PUSD ACR v3 circle link.');
+  }
+  const configured = configuredPusdCategory('chipnet');
+  if (p.pusdCategory.toLowerCase() !== configured.toLowerCase()) throw new Error('This PUSD circle uses a category that is not the currently verified Chipnet PUSD category.');
+  const params: PusdV3Params = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee), retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps) };
+  const gross = BigInt(params.members.length) * params.contribution;
+  const retained = gross * params.retentionBps! / 10_000n;
+  if (params.contribution <= 0n || params.retentionBps! < 0n || params.retentionBps! > 5000n || retained <= 0n || retained >= gross || params.maxFee > gross - retained - 1000n) {
+    throw new Error('PUSD ACR v3 link contains invalid contribution, retention or fee limits.');
+  }
+  const keys = params.members.map(a => Array.from(addressToPkh(a)).join(','));
+  if (new Set(keys).size !== keys.length) throw new Error('PUSD ACR v3 link contains duplicate member addresses.');
+  return params;
+};
+function savePusdV3Circle(p: PusdV3Params) {
+  const list: string[] = JSON.parse(localStorage.getItem('ajo-pusd-v3-circles') || '[]');
+  const encoded = encodePusdV3Link(p);
+  if (!list.includes(encoded)) list.unshift(encoded);
+  localStorage.setItem('ajo-pusd-v3-circles', JSON.stringify(list.slice(0, 20)));
+}
+function renderPusdV3Create() {
+  let category = '';
+  let configError = '';
+  try { category = configuredPusdCategory('chipnet'); } catch (e: any) { configError = String(e.message || e); }
+  const addr = wallet.state === 'connected' ? wallet.address(network) : null;
+  app.innerHTML = `<section class="card"><p class="kicker">PUSD ACR v3 · Chipnet beta</p><h2>Create a PUSD protected circle</h2><p class="note"><b>Chipnet only.</b> This version tracks each member's PUSD credit and automatically retains the agreed payout percentage for the winner's next contribution. It is experimental and unaudited.</p>${configError ? `<p class="err">${esc(configError)} PUSD circle creation remains unavailable until a Chipnet test category is configured.</p><a class="btn ghost sm" href="#/tools/mock-pusd">Create mock tPUSD</a>` : `<p class="small muted">Configured Chipnet test-token category: <code>${esc(category)}</code></p><a class="ghost btnlink" href="#/tools/mock-pusd">Manage test token</a>`}<form id="pv3f"><label>Circle name<input name="name" required maxlength="60" value="Our PUSD ACR"/></label><label>Contribution per member (PUSD base units)<input name="amount" required inputmode="numeric" value="100000"/></label><fieldset><legend>Members in payout order (2–5)</legend><div id="pv3members">${[addr || '', '', ''].map((v, i) => memberRow(v, i)).join('')}</div><button type="button" class="ghost sm" id="pv3add">+ Add member</button></fieldset><label>Automatic retention (%)<input name="retention" type="number" min="0.01" max="50" step="0.01" value="20" required/></label><label>BCH reserve top-up and maximum miner fee (sats)<input name="fee" type="number" min="5000" step="1" value="10000"/></label><p class="err" id="pv3err"></p><button class="btn" type="submit" ${network === 'chipnet' && !configError ? '' : 'disabled'}>Create PUSD ACR v3 circle</button></form><a class="ghost btnlink" href="#/">Back home</a></section>`;
+  $('#pv3add').onclick = () => { const el = $('#pv3members'); if (el.children.length < 5) el.insertAdjacentHTML('beforeend', memberRow('', el.children.length)); };
+  $<HTMLFormElement>('#pv3f').onsubmit = async ev => {
+    ev.preventDefault(); const err = $('#pv3err'); err.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('PUSD ACR v3 is Chipnet-only.');
+      const pusdCategory = configuredPusdCategory('chipnet');
+      const fd = new FormData($<HTMLFormElement>('#pv3f'));
+      const members = (fd.getAll('m') as string[]).map(x => x.trim()).filter(Boolean);
+      if (members.length < 2 || members.length > 5) throw new Error('Enter 2–5 member addresses.');
+      members.forEach(addressToPkh);
+      const amount = BigInt(String(fd.get('amount') || '0'));
+      const rate = Number(fd.get('retention'));
+      if (!Number.isFinite(rate) || rate < 0 || rate > 50) throw new Error('Retention must be between 0% and 50%.');
+      const draft = { version: 3 as const, name: String(fd.get('name')).trim(), network, members,
+        contribution: amount, maxFee: BigInt(String(fd.get('fee') || '0')),
+        retentionBps: BigInt(Math.round(rate * 100)), pusdCategory };
+      if (!wallet.address(network)) { openWalletModal(); throw new Error('Connect Selene to create the circle.'); }
+      err.textContent = 'Preparing PUSD ACR v3 state and member receipts…';
+      const g = await planPusdV3Genesis(draft, wallet.address(network)!);
+      err.textContent = 'Approve PUSD ACR v3 genesis in Selene…';
+      await wallet.signAndBroadcast(g.wc, g.walletInputs, `Create PUSD ACR v3 circle "${draft.name}"`, network);
+      const state = await readPusdV3Circle(g.params);
+      if (state.credits.length !== members.length || state.credits.some(x => x !== 0n) || state.pool ||
+          state.utxos.filter(u => u.token?.category === g.params.stateCategory).length !== members.length + 1) {
+        throw new Error('PUSD ACR v3 genesis did not produce the expected state and receipt set. Do not invite members.');
+      }
+      savePusdV3Circle(g.params);
+      location.hash = `#/pv3/${encodePusdV3Link(g.params)}`;
+    } catch (e: any) { err.textContent = String(e.message || e); }
+  };
+}
+async function renderPusdV3Circle(encoded: string) {
+  let p: PusdV3Params;
+  try { p = decodePusdV3Link(encoded); } catch (e: any) { app.innerHTML = `<section class="card"><p class="err">${esc(String(e.message || e))}</p></section>`; return; }
+  savePusdV3Circle(p);
+  if (network !== p.network) { network = p.network; localStorage.setItem('ajo-net', network); renderHeader(); }
+  const myAddress = wallet.state === 'connected' ? wallet.address(network) : null;
+  const myIndex = myAddress ? p.members.findIndex(m => { try { return Array.from(addressToPkh(m)).join(',') === Array.from(addressToPkh(myAddress)).join(','); } catch { return false; } }) : -1;
+  const rate = p.retentionBps ?? 2000n;
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Chipnet · PUSD ACR v3</p><h2>${esc(p.name)}</h2></div><span class="tag gold">Experimental</span></div><p class="muted">${p.members.length} members · ${p.contribution.toString()} PUSD base units each</p><p class="small muted">Retention: ${Number(rate) / 100}% · PUSD category: <code>${esc(p.pusdCategory || '')}</code></p><div id="pv3status"><p class="muted">Reading member receipts and PUSD pool…</p></div><div class="actions"><button class="ghost" id="pv3refresh">Refresh</button><button class="ghost" id="pv3copy">Copy invite link</button></div><div>${myIndex >= 0 ? `<label>Deposit amount (PUSD base units)<input id="pv3depositAmount" inputmode="numeric" value="${p.contribution.toString()}"/></label><button class="btn" id="pv3deposit">Add PUSD credit for Member ${myIndex + 1}</button>` : '<p class="muted small">Connect the wallet registered for a member slot to add PUSD credit.</p>'}</div><p class="err" id="pv3err"></p><p class="muted small">Each PUSD deposit also needs a separate BCH input: ${p.maxFee.toString()} sats are added to the circle reserve, the remaining BCH change is returned to the member, and the network fee is capped at the same amount. PUSD ACR v3 is Chipnet-only and unaudited. No mainnet PUSD use.</p></section>`;
+  $('#pv3copy').onclick = () => navigator.clipboard.writeText(location.href);
+  const load = async () => {
+    const status = $('#pv3status');
+    try {
+      const state = await readPusdV3Circle(p);
+      const gross = BigInt(p.members.length) * p.contribution;
+      const retained = gross * rate / 10_000n;
+      status.innerHTML = `<div class="mini-stats"><div><span>Round</span><b>${state.round + 1} / ${p.members.length}</b></div><div><span>Gross PUSD</span><b>${gross.toString()}</b></div><div><span>Next recipient</span><b>Member ${state.round + 1}</b></div></div><div class="note"><b>ACR payout preview</b><br/>Retained: ${retained.toString()} PUSD base units<br/>Recipient: ${(gross - retained).toString()} PUSD base units before fees (PUSD backing is preserved).</div><h3>Verified member credits</h3><ul class="members">${state.credits.map((credit, i) => `<li><span class="av">${i + 1}</span><span class="who"><b>Member ${i + 1}</b><small>${short(p.members[i])}</small></span><strong>${credit.toString()} PUSD</strong></li>`).join('')}</ul><p class="note">${state.ready ? 'Every member has enough independently attributed PUSD credit.' : 'Payout remains locked until every member has one full contribution and the PUSD pool reconciles with all receipts.'}</p><button class="btn" id="pv3payout" ${state.ready ? '' : 'disabled'}>Pay out with PUSD ACR</button>`;
+      $('#pv3payout').onclick = async () => {
+        try { $('#pv3err').textContent = 'Preparing PUSD ACR payout…'; const result = await planPusdV3Payout(p); const provider = await getProvider(p.network); const txid = await provider.sendRawTransaction(result.builder.build()); $('#pv3err').innerHTML = `PUSD ACR payout broadcast: <a href="${explorerTx(p.network, txid)}" target="_blank" rel="noopener">View transaction</a>`; setTimeout(load, 2500); }
+        catch (e: any) { $('#pv3err').textContent = String(e.message || e); }
+      };
+    } catch (e: any) { status.innerHTML = `<p class="err">${esc(String(e.message || e))}</p>`; }
+  };
+  $('#pv3refresh').onclick = load;
+  const deposit = $('#pv3deposit');
+  if (deposit) deposit.onclick = async () => {
+    try {
+      if (wallet.state !== 'connected' || !wallet.address(network)) throw new Error('Connect the registered member wallet first.');
+      const amount = BigInt($<HTMLInputElement>('#pv3depositAmount').value);
+      $('#pv3err').textContent = 'Preparing member-specific PUSD deposit…';
+      const plan = await planPusdV3Deposit(p, myIndex, amount, wallet.address(network)!);
+      await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Add PUSD to your ACR v3 member receipt', network);
+      $('#pv3err').textContent = 'PUSD deposit broadcast. Waiting for confirmation…';
+      setTimeout(load, 3000);
+    } catch (e: any) { $('#pv3err').textContent = String(e.message || e); }
+  };
+  await load();
+}
+
+function renderMockPusdTools() {
+  const category = getMockPusdCategory();
+  const connectedAddress = wallet.state === 'connected' ? wallet.address('chipnet') : null;
+  app.innerHTML = `<section class="card"><p class="kicker">Developer tools · Chipnet</p><div class="status-row"><h2>Issue mock PUSD</h2><span class="tag gold">Test only</span></div><p class="note"><b>tPUSD is not official PUSD.</b> It is an unbacked, fixed-supply test token with no redemption value. It exists only to exercise AjoChain's CashToken deposit, pool, payout and retention logic on Chipnet.</p><div class="mini-stats"><div><span>Token</span><b>${MOCK_PUSD_TICKER}</b></div><div><span>Supply</span><b>1,000</b></div><div><span>Decimals</span><b>${MOCK_PUSD_DECIMALS}</b></div></div><p class="small muted">The token has a fixed genesis supply of 1,000 tPUSD (1,000,000,000 base units). No minting NFT is retained, so additional supply cannot be issued.</p><div id="mockPusdStatus">${category ? `<p><b>Configured Chipnet category:</b></p><code class="addr">${esc(category)}</code><p class="small muted">This browser will use this category for PUSD ACR v3 test circles.</p>` : '<p class="muted">No local tPUSD category has been created yet.</p>'}</div><form id="importMockPusd" class="restore-circle"><label>Import a tester category from the issuer<input name="category" maxlength="64" minlength="64" pattern="[0-9a-fA-F]{64}" placeholder="64-character CashToken category ID" required/></label><button class="ghost" type="submit">Use existing tPUSD category</button><p class="small muted">Other testers should paste the exact category shared by the token issuer. Only import a category you trust.</p></form><div class="restore-circle"><h3>Distribute existing tPUSD</h3><p class="small muted">Send tokens from this connected issuer wallet to a tester. This transfers existing supply only; it cannot mint more tPUSD.</p><p class="small muted">Issuer wallet: ${connectedAddress ? `<code>${esc(connectedAddress)}</code>` : 'Connect Selene to view your wallet address.'}</p><form id="sendMockPusd"><label>Tester Chipnet address<input name="recipient" placeholder="bitcoincash:… or bchtest:…" autocomplete="off" required/></label><label>Amount (tPUSD)<input name="amount" inputmode="decimal" placeholder="e.g. 100 or 25.5" pattern="[0-9]+(\\.[0-9]{1,6})?" required/></label><button class="ghost" type="submit" ${category && network === 'chipnet' ? '' : 'disabled'}>Review and send tPUSD</button></form><p class="small muted">The issuer must have tPUSD and separate Chipnet BCH for network fees. Selene will ask you to approve the transfer.</p></div><button class="btn" id="issueMockPusd" ${network === 'chipnet' && !category ? '' : 'disabled'}>${category ? 'tPUSD already configured' : 'Create tPUSD on Chipnet'}</button><p class="err" id="mockPusdError"></p><div class="actions"><a class="btn ghost" href="#/pv3/create">Open PUSD ACR v3</a><a class="ghost btnlink" href="#/">Back home</a></div><p class="small muted">Requires a connected Selene wallet and Chipnet BCH for two wallet-approved transactions. The first creates a genesis anchor; the second issues the fixed test supply.</p></section>`;
+  $<HTMLFormElement>('#importMockPusd').onsubmit = ev => {
+    ev.preventDefault();
+    const value = String(new FormData($<HTMLFormElement>('#importMockPusd')).get('category') || '').trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(value)) { $('#mockPusdError').textContent = 'Enter a valid 32-byte Chipnet category ID.'; return; }
+    try { saveMockPusdCategory(value); location.reload(); } catch (e: any) { $('#mockPusdError').textContent = String(e?.message || e); }
+  };
+  $<HTMLFormElement>('#sendMockPusd').onsubmit = async ev => {
+    ev.preventDefault();
+    const error = $('#mockPusdError');
+    error.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('Switch to Chipnet before sending tPUSD.');
+      if (!category) throw new Error('Import or create the tPUSD category first.');
+      const sender = wallet.state === 'connected' ? wallet.address('chipnet') : null;
+      if (!sender) { openWalletModal(); throw new Error('Connect the issuer Selene wallet first.'); }
+      const form = new FormData($<HTMLFormElement>('#sendMockPusd'));
+      const recipient = String(form.get('recipient') || '').trim();
+      const amountText = String(form.get('amount') || '').trim();
+      const amount = parseMockPusdAmount(amountText);
+      const submit = $<HTMLButtonElement>('#sendMockPusd button[type=submit]');
+      submit.disabled = true;
+      error.textContent = 'Preparing tPUSD transfer…';
+      const plan = await planMockPusdTransfer(sender, recipient, category, amount);
+      error.textContent = 'Review and approve the tPUSD transfer in Selene…';
+      const txid = await wallet.signAndBroadcast(plan.wc, plan.walletInputs, 'Send existing tPUSD to a Chipnet tester', 'chipnet');
+      error.innerHTML = `tPUSD transfer broadcast: <a href="${explorerTx('chipnet', txid)}" target="_blank" rel="noopener">View transaction</a>. Sent ${esc(amountText)} tPUSD.`;
+      $<HTMLFormElement>('#sendMockPusd').reset();
+    } catch (e: any) { error.textContent = String(e?.message || e); }
+    finally { const submit = $<HTMLButtonElement>('#sendMockPusd button[type=submit]'); if (submit) submit.disabled = !category || network !== 'chipnet'; }
+  };
+  const button = $<HTMLButtonElement>('#issueMockPusd');
+  button.onclick = async () => {
+    const error = $('#mockPusdError');
+    const status = $('#mockPusdStatus');
+    error.textContent = '';
+    try {
+      if (network !== 'chipnet') throw new Error('Switch to Chipnet before creating the test token.');
+      if (getMockPusdCategory()) throw new Error('A tPUSD category is already configured in this browser. Issuance is one-time; use the existing category or clear it only after a deliberate reset.');
+      const address = wallet.address('chipnet');
+      if (!address) { openWalletModal(); throw new Error('Connect your Selene wallet first.'); }
+      button.disabled = true;
+      status.textContent = 'Preparing the CashToken genesis anchor…';
+      const anchor = await planMockPusdAnchor(address);
+      status.textContent = 'Approve transaction 1 of 2 in Selene: create the genesis anchor.';
+      const anchorTxid = await wallet.signAndBroadcast(anchor.wc, anchor.walletInputs, 'Create tPUSD genesis anchor', 'chipnet');
+      status.textContent = `Anchor broadcast (${shortTx(anchorTxid)}). Waiting for Chipnet indexing…`;
+      let issuance: Awaited<ReturnType<typeof planMockPusdGenesis>> | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        try {
+          issuance = await planMockPusdGenesis(address, anchorTxid);
+          break;
+        } catch (e: any) {
+          if (!String(e?.message || e).includes('not indexed yet')) throw e;
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+      if (!issuance) throw new Error('The anchor is not indexed yet. Refresh this page and retry after the transaction appears in the Chipnet explorer.');
+      status.textContent = 'Approve transaction 2 of 2 in Selene: issue the fixed tPUSD supply.';
+      const tokenTxid = await wallet.signAndBroadcast(issuance.wc, issuance.walletInputs, 'Issue fixed-supply AjoChain tPUSD', 'chipnet');
+      saveMockPusdCategory(issuance.category);
+      button.textContent = 'tPUSD already configured';
+      button.disabled = true;
+      let verified = false;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        verified = await verifyMockPusdGenesis(address, issuance.category);
+        if (verified) break;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      if (!verified) throw new Error(`Genesis was broadcast, but the token output is not indexed yet. Category ${issuance.category} is saved locally; refresh and verify before creating a circle.`);
+      status.innerHTML = `<p><b>tPUSD genesis broadcast and verified.</b></p><p>Token transaction: <a href="${explorerTx('chipnet', tokenTxid)}" target="_blank" rel="noopener">${esc(shortTx(tokenTxid))}</a></p><p><b>Chipnet category:</b></p><code class="addr">${esc(issuance.category)}</code><p class="small muted">1,000 tPUSD fixed supply · 6 decimals · no redemption value. PUSD ACR v3 can now use this token in this browser.</p>`;
+      button.textContent = 'tPUSD already configured';
+      button.disabled = true;
+    } catch (e: any) {
+      error.textContent = String(e?.message || e);
+    } finally {
+      button.disabled = network !== 'chipnet' || Boolean(getMockPusdCategory());
+    }
+  };
+}
+
 function renderMine() {
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
   const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
+  const v3List: string[] = JSON.parse(localStorage.getItem('ajo-v3-circles') || '[]');
+  const pv3List: string[] = JSON.parse(localStorage.getItem('ajo-pusd-v3-circles') || '[]');
   const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH · Classic</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">V1</span></li>`; } catch { return ''; } }).join('');
   const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Legacy PUSD</span></li>`; } catch { return ''; } }).join('');
   const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag green">V2</span></li>`; } catch { return ''; } }).join('');
-  const hasCircles = Boolean((bchItems + pusdItems + v2Items).trim());
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a></div><p class="muted small local-save-note">Saved on this browser only · not yet synced to wallet-based recovery. Connecting your wallet does not currently restore circles automatically; keep your original invite links for cross-device access.</p>${hasCircles ? `<ul class="members circle-list">${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+  const v3Items = v3List.map((e) => { try { const p = decodeV3Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · ${Number(p.retentionBps ?? 2000n) / 100}% ACR retention</small></span><span class="tag green">ACR V3</span></li>`; } catch { return ''; } }).join('');
+  const pv3Items = pv3List.map((e) => { try { const p = decodePusdV3Link(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/pv3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · PUSD member credits · ${Number(p.retentionBps ?? 2000n) / 100}% retention</small></span><span class="tag green">PUSD ACR V3</span></li>`; } catch { return ''; } }).join('');
+  const hasCircles = Boolean((bchItems + pusdItems + v2Items + v3Items + pv3Items).trim());
+  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a> <a class="btn sm ghost" href="#/v3/create">+ ACR V3</a></div><p class="muted small local-save-note">Saved on this browser only · not yet synced to wallet-based recovery. Connecting your wallet does not currently restore circles automatically; keep your original invite links for cross-device access.</p>${hasCircles ? `<ul class="members circle-list">${pv3Items}${v3Items}${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
   $('#restoreCircleBtn').onclick = () => {
     const field = $<HTMLInputElement>('#restoreCircleLink');
     const error = $('#restoreCircleError');
@@ -391,7 +744,7 @@ function renderMine() {
       if (!raw) throw new Error('Paste the original circle invite link first.');
       let hash = raw;
       try { hash = new URL(raw).hash || raw; } catch { /* accept a hash fragment */ }
-      const match = hash.match(/#\/(c|p|v2)\/([A-Za-z0-9_-]+)(?:\?manual=1)?$/);
+      const match = hash.match(/#\/(c|p|v2|v3|pv3)\/([A-Za-z0-9_-]+)(?:\?manual=1)?$/);
       if (!match) throw new Error('That link does not contain a recognised AjoChain circle route.');
       const [, kind, encoded] = match;
       if (kind === 'c') {
@@ -402,8 +755,12 @@ function renderMine() {
         if (!list.includes(encoded)) list.unshift(encoded);
         localStorage.setItem('ajo-pusd-circles', JSON.stringify(list.slice(0, 20)));
         location.hash = `#/p/${encoded}`;
-      } else {
+      } else if (kind === 'v2') {
         const p = decodeV2Link(encoded); saveV2Circle(p); location.hash = `#/v2/${encoded}`;
+      } else if (kind === 'v3') {
+        const p = decodeV3Link(encoded); saveV3Circle(p); location.hash = `#/v3/${encoded}`;
+      } else {
+        const p = decodePusdV3Link(encoded); savePusdV3Circle(p); location.hash = `#/pv3/${encoded}`;
       }
     } catch (e: any) { error.textContent = String(e.message || e); }
   };
@@ -412,14 +769,19 @@ function renderMine() {
 function route() {
   renderHeader();
   const h = location.hash || '#/';
-  document.querySelectorAll('nav a').forEach((a) => { const href = (a as HTMLAnchorElement).getAttribute('href')!; const active = href === '#/' ? h === '#/' : h.startsWith(href); a.classList.toggle('on', active); });
+  document.querySelectorAll('nav a').forEach((a) => { const href = (a as HTMLAnchorElement).getAttribute('href')!; const isCreateRoute = h === '#/create' || h === '#/legacy' || h.startsWith('#/create/') || h.startsWith('#/create?') || h === '#/v2/create' || h === '#/v3/create' || h === '#/pv3/create' || h === '#/tools/mock-pusd'; const active = href === '#/' ? h === '#/' : href === '#/create' ? isCreateRoute : h.startsWith(href); a.classList.toggle('on', active); });
   if (h === '#/legacy' || h.startsWith('#/legacy?') || h === '#/create' || h.startsWith('#/create?')) return renderCreate();
   if (h.startsWith('#/create/bch')) return renderBchCreate();
   if (h.startsWith('#/create/pusd')) return renderPusdCreate();
   if (h.startsWith('#/pusd/create')) return renderPusdCreate();
   if (h.startsWith('#/p/')) return renderPusdCircle(h.slice(4));
+  if (h === '#/tools/mock-pusd') return renderMockPusdTools();
+  if (h === '#/pv3/create') return renderPusdV3Create();
+  if (h.startsWith('#/pv3/')) return renderPusdV3Circle(h.slice(6));
+  if (h === '#/v3/create') return renderV3Create();
+  if (h.startsWith('#/v3/')) return renderV3Circle(h.slice(5));
   if (h === '#/v2/create') return renderV2Create();
-  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(4));
+  if (h.startsWith('#/v2/')) return renderV2Circle(h.slice(5));
   if (h.startsWith('#/mine')) return renderMine();
   if (h.startsWith('#/c/')) { const [enc, q] = h.slice(4).split('?'); return renderCircle(enc, q === 'manual=1'); }
   return renderHome();

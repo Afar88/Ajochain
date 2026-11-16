@@ -18,6 +18,20 @@ The app's featured experience is now the **V2 member-credit beta**: each member 
 
 > **Ajo in one line:** a group of friends each chip in the same amount every week, and every week one of them takes home the whole pot, in a fixed order, until everyone has had a turn.
 
+## Automatic Contribution Retention (ACR) v3 — Chipnet prototype
+
+A new ACR v3 contract path is being developed separately from the deployed V1/V2 circles:
+
+- New circles default to **20% payout retention**, committed to the circle at creation (configurable from 0–50% for BCH; PUSD requires a positive retained token amount).
+- On every payout, the scheduled member receives the gross pot less retention and the miner fee (BCH), or gross PUSD less retention (PUSD; BCH fees use a separate reserve).
+- The retained amount is credited to that winner's member receipt and remains locked for their future contributions. Excess credit carries forward.
+- Every member must independently have at least one full contribution before a payout. Another member's surplus cannot cover a shortfall.
+- Existing V1/V2 circles are not migrated or modified. ACR v3 is experimental, unaudited, and Chipnet-only.
+
+BCH ACR v3 has a separate contract and transaction planner. PUSD ACR v3 has member receipts plus a PUSD pool reconciled against the sum of receipt credits; it accepts a separately verified Chipnet token category or the locally issued test-only tPUSD category. PUSD ACR v3 does not yet support cancellation/refunds or member replacement.
+
+See [ACR accounting rules](docs/AUTOMATIC_CONTRIBUTION_RETENTION.md) and [PUSD ACR v3 security notes](docs/PUSD_ACR_V3_SECURITY_NOTES.md). Do not use real BCH or PUSD. The test-token setup and limitations are documented in [MOCK_PUSD_CHIPNET.md](docs/MOCK_PUSD_CHIPNET.md); the hands-on [Chipnet tester checklist](docs/CHIPNET_TESTER_CHECKLIST.md) covers issuer setup, token distribution, deposits, payout, and rollover verification.
+
 ## Getting started
 
 1. Open the [AjoChain app](https://afar88.github.io/Ajochain/).
@@ -35,7 +49,7 @@ For the current limitations and rollout plan for member-level contribution recei
 
 ### PUSD circles (experimental)
 
-AjoCirclePUSD is a separate CashTokens fungible-token covenant for ParyonUSD. The PUSD category is pinned to `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`. Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
+AjoCirclePUSD is a separate experimental CashTokens fungible-token covenant. The official ParyonUSD **mainnet** category is `2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544`, but AjoChain does not enable PUSD mainnet transactions. Chipnet must use a distinct, independently verified test-token category supplied as `VITE_PUSD_CHIPNET_CATEGORY`; this variable is intentionally unset until the Chipnet token's genesis and issuer are verified. AjoChain refuses to fall back to the mainnet category on Chipnet. See [PUSD network configuration](docs/PUSD_NETWORK_CONFIGURATION.md). Each member contributes the configured number of PUSD base units; the round payout sends exactly `memberCount × contribution` token units to the scheduled member. Any token surplus must return to the circle. The existing mutable state NFT and unanimous-member cancellation model remain in place.
 
 PUSD token UTXOs also carry BCH. The covenant requires at least 1,000 sats on each token-bearing payout/surplus output and on the BCH reserve change, preserves the state UTXO's BCH value and all BCH backing attached to PUSD inputs, and funds miner fees only from a separate token-free BCH reserve input. Unused reserve returns to the circle; the miner fee cannot exceed the BCH reserve input. This is a separate experimental contract from the BCH-only `AjoCircle.cash`. The experimental web flow now supports Chipnet circle creation, wallet-funded PUSD contributions, live status, and permissionless payouts. PUSD creation and contribution transactions use WizardConnect; payout uses the covenant. Tests use CashScript's MockNetworkProvider only. Cancellation still requires every member's signature and has no in-app multi-wallet signing flow. **Chipnet only; unaudited; do not use with mainnet funds.**
 
@@ -154,7 +168,7 @@ These are design specifications, not shipped features. The current app remains a
 | GitHub repo with source code | ✅ https://github.com/Afar88/Ajochain |
 | Live, clickable demo | ✅ https://afar88.github.io/Ajochain/ (GitHub Pages) |
 | WizardConnect (or XO template) integration | 🟡 Integrated with the official packages; needs an end-to-end test with a WizardConnect wallet |
-| At least one feature sending **mainnet** BCH transactions | 🟡 Supported (contribute / payout / genesis are network-agnostic, mainnet toggle). **A real mainnet tx has not been made yet and needs the team's own wallet and approval.** |
+| At least one feature sending **mainnet** BCH transactions | ⬜ Not ready / not verified | A Classic BCH network path exists, but no real mainnet transaction has been verified or independently reviewed. Do not claim Mainnet readiness until it is explicitly approved and tested with a real wallet. |
 | Short presentation from the "Widget Factory" template | ⬜ TODO (slides) |
 | CashTokens address for EMBER2026 donations | ⬜ TODO: `bitcoincash:z…` *(placeholder, add a token-aware address)* |
 | A team member attended a BLAZE stream roll call | ⬜ TODO |
