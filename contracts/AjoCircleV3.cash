@@ -1,0 +1,126 @@
+pragma cashscript ^0.14.0;
+
+// AjoChain v3 BCH covenant with Automatic Contribution Retention (ACR).
+// State NFT: 0x53 | round. Receipt NFT i: 0x52 | memberIndex | creditSats(8 LE).
+// New circles only; V1/V2 bytecode and active circles are not changed.
+contract AjoCircleV3(
+    bytes20 m0, bytes20 m1, bytes20 m2, bytes20 m3, bytes20 m4,
+    int memberCount,
+    int contribution,
+    int maxFee,
+    int retentionBps,
+    bytes32 stateCategory
+) {
+    function addCredit(int memberIndex, int amount) {
+        require(this.activeInputIndex == 0 || this.activeInputIndex == 1);
+        require(memberCount >= 2 && memberCount <= 5);
+        require(contribution > 0 && contribution <= 9223372036854775807 / memberCount);
+        require(memberIndex >= 0 && memberIndex < memberCount);
+        require(amount > 0 && amount <= 9223372036854775807);
+        require(maxFee >= 0);
+        require(retentionBps >= 0 && retentionBps <= 5000);
+        require(tx.inputs.length == 3 && tx.outputs.length == 3);
+        require(tx.inputs[0].lockingBytecode == tx.inputs[1].lockingBytecode);
+        require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
+        require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.inputs[0].tokenAmount == 0);
+        require(tx.inputs[1].tokenCategory == stateCategory);
+        require(tx.inputs[1].tokenAmount == 0);
+        require(tx.inputs[2].tokenCategory == 0x);
+        if (memberIndex == 0) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m0)); }
+        if (memberIndex == 1) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m1)); }
+        if (memberIndex == 2) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m2)); }
+        if (memberIndex == 3) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m3)); }
+        if (memberIndex == 4) { require(tx.inputs[2].lockingBytecode == new LockingBytecodeP2PKH(m4)); }
+
+        bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
+        require(statePrefix == 0x53 && stateRound.length == 1);
+        require(int(stateRound) >= 0 && int(stateRound) < memberCount);
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.outputs[0].tokenAmount == 0);
+        require(tx.outputs[0].nftCommitment == tx.inputs[0].nftCommitment);
+        require(tx.outputs[0].value == tx.inputs[0].value + amount);
+
+        bytes receiptPrefix, bytes receiptData = tx.inputs[1].nftCommitment.split(1);
+        bytes receiptMember, bytes receiptCredit = receiptData.split(1);
+        require(receiptPrefix == 0x52 && int(receiptMember) == memberIndex);
+        require(receiptCredit.length == 8);
+        int oldCredit = int(receiptCredit);
+        require(oldCredit >= 0 && oldCredit <= 9223372036854775807 - amount);
+        require(tx.outputs[1].lockingBytecode == tx.inputs[1].lockingBytecode);
+        require(tx.outputs[1].tokenCategory == stateCategory);
+        require(tx.outputs[1].tokenAmount == 0);
+        require(tx.outputs[1].nftCommitment == 0x52 + toPaddedBytes(memberIndex, 1) + toPaddedBytes(oldCredit + amount, 8));
+        require(tx.outputs[1].value == tx.inputs[1].value);
+
+        require(tx.outputs[2].lockingBytecode == tx.inputs[2].lockingBytecode);
+        require(tx.outputs[2].tokenCategory == 0x);
+        require(tx.outputs[2].value <= tx.inputs[2].value - amount);
+        require(tx.outputs[2].value >= tx.inputs[2].value - amount - maxFee);
+    }
+
+    function payout() {
+        require(memberCount >= 2 && memberCount <= 5);
+        require(contribution > 0 && contribution <= 9223372036854775807 / memberCount);
+        require(maxFee >= 0);
+        require(retentionBps >= 0 && retentionBps <= 5000);
+        require(this.activeInputIndex >= 0 && this.activeInputIndex <= memberCount);
+        require(tx.inputs.length == memberCount + 1);
+        require(tx.outputs.length == memberCount + 2);
+        require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
+        require(tx.inputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.inputs[0].tokenAmount == 0);
+
+        bytes statePrefix, bytes stateRound = tx.inputs[0].nftCommitment.split(1);
+        require(statePrefix == 0x53 && stateRound.length == 1);
+        int round = int(stateRound);
+        require(round >= 0 && round < memberCount);
+        int pot = memberCount * contribution;
+        int retained = (pot / 10000) * retentionBps + ((pot % 10000) * retentionBps / 10000);
+        require(retained >= 0 && retained <= pot);
+        int totalCredits = 0;
+        for (int i = 0; i < memberCount; i++) {
+            int receiptInput = i + 1;
+            require(tx.inputs[receiptInput].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.inputs[receiptInput].tokenCategory == stateCategory);
+            require(tx.inputs[receiptInput].tokenAmount == 0);
+            bytes receiptPrefix, bytes receiptData = tx.inputs[receiptInput].nftCommitment.split(1);
+            bytes receiptMember, bytes receiptCredit = receiptData.split(1);
+            require(receiptPrefix == 0x52 && int(receiptMember) == i);
+            require(receiptCredit.length == 8);
+            int oldCredit = int(receiptCredit);
+            require(oldCredit >= contribution);
+            require(totalCredits <= 9223372036854775807 - oldCredit);
+            totalCredits = totalCredits + oldCredit;
+            int nextCredit = oldCredit - contribution;
+            if (i == round) {
+                require(nextCredit <= 9223372036854775807 - retained);
+                nextCredit = nextCredit + retained;
+            }
+            require(tx.outputs[receiptInput].lockingBytecode == tx.inputs[receiptInput].lockingBytecode);
+            require(tx.outputs[receiptInput].tokenCategory == stateCategory);
+            require(tx.outputs[receiptInput].tokenAmount == 0);
+            require(tx.outputs[receiptInput].nftCommitment == 0x52 + toPaddedBytes(i, 1) + toPaddedBytes(nextCredit, 8));
+            require(tx.outputs[receiptInput].value == tx.inputs[receiptInput].value);
+        }
+
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].tokenCategory == stateCategory + 0x02);
+        require(tx.outputs[0].tokenAmount == 0);
+        require(tx.outputs[0].nftCommitment == 0x53 + toPaddedBytes((round + 1) % memberCount, 1));
+        require(tx.inputs[0].value >= totalCredits + 1000);
+        require(tx.outputs[0].value == tx.inputs[0].value - pot + retained);
+        require(tx.outputs[0].value >= 1000);
+
+        bytes20 recipient = m0;
+        if (round == 1) { recipient = m1; }
+        if (round == 2) { recipient = m2; }
+        if (round == 3) { recipient = m3; }
+        if (round == 4) { recipient = m4; }
+        require(tx.outputs[memberCount + 1].lockingBytecode == new LockingBytecodeP2PKH(recipient));
+        require(tx.outputs[memberCount + 1].tokenCategory == 0x);
+        require(tx.outputs[memberCount + 1].value <= pot - retained);
+        require(tx.outputs[memberCount + 1].value >= pot - retained - maxFee);
+    }
+}
