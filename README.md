@@ -168,7 +168,7 @@ These are design specifications, not shipped features. The current app remains a
 | GitHub repo with source code | ✅ https://github.com/Afar88/Ajochain |
 | Live, clickable demo | ✅ https://afar88.github.io/Ajochain/ (GitHub Pages) |
 | WizardConnect (or XO template) integration | 🟡 Integrated with the official packages; needs an end-to-end test with a WizardConnect wallet |
-| At least one feature sending **mainnet** BCH transactions | 🟡 Supported (contribute / payout / genesis are network-agnostic, mainnet toggle). **A real mainnet tx has not been made yet and needs the team's own wallet and approval.** |
+| At least one feature sending **mainnet** BCH transactions | ⬜ Not ready / not verified | A Classic BCH network path exists, but no real mainnet transaction has been verified or independently reviewed. Do not claim Mainnet readiness until it is explicitly approved and tested with a real wallet. |
 | Short presentation from the "Widget Factory" template | ⬜ TODO (slides) |
 | CashTokens address for EMBER2026 donations | ⬜ TODO: `bitcoincash:z…` *(placeholder, add a token-aware address)* |
 | A team member attended a BLAZE stream roll call | ⬜ TODO |
