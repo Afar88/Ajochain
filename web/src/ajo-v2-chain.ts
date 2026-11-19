@@ -191,7 +191,8 @@ export async function readV2Circle(params: V2CircleParams) {
   assertV2UtxoSet(utxos, params.stateCategory, params.members.length);
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('Invalid v2 payout round.');
+  if (round < 0 || round > params.members.length) throw new Error('Invalid v2 payout round.');
+  const completed = round === params.members.length;
   const receipts = params.members.map((_, index) => findReceipt(utxos, params.stateCategory, index));
   const credits = receipts.map(receipt => v2CreditFromCommitment(receipt.token!.nft!.commitment));
   return {
@@ -200,7 +201,8 @@ export async function readV2Circle(params: V2CircleParams) {
     round,
     stateSatoshis: state.satoshis,
     credits,
-    ready: credits.every(credit => credit >= params.contribution),
-    recipient: params.members[round],
+    ready: !completed && credits.every(credit => credit >= params.contribution),
+    completed,
+    recipient: completed ? null : params.members[round],
   };
 }
