@@ -55,6 +55,25 @@ function readUintLE(bytes: Uint8Array, offset: number, length: number): bigint {
   return result;
 }
 
+export function validateCashTokensGenesisSourceOutput(
+  expectedCategory: string,
+  previousTransactionId: string,
+  previousOutputZero: { valueSatoshis: bigint; token?: unknown } | undefined,
+): void {
+  if (!/^[0-9a-f]{64}$/i.test(expectedCategory) ||
+      !/^[0-9a-f]{64}$/i.test(previousTransactionId) ||
+      expectedCategory.toLowerCase() !== previousTransactionId.toLowerCase()) {
+    throw new Error('CashTokens category does not match the first input previous transaction ID.');
+  }
+  if (!previousOutputZero || typeof previousOutputZero.valueSatoshis !== 'bigint' ||
+      previousOutputZero.valueSatoshis <= 0n) {
+    throw new Error('The first input must spend an existing output 0 with a positive BCH value.');
+  }
+  if (previousOutputZero.token !== undefined) {
+    throw new Error('CashTokens genesis must spend a non-token output 0.');
+  }
+}
+
 function compactName(name: string): Uint8Array {
   const encoder = new TextEncoder();
   let compact = '';
