@@ -9,7 +9,7 @@ import { wallet } from './wallet';
 import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
 import { MockNetworkProvider } from 'cashscript';
 import { verifyClassicCircle } from '../../src/lib/recovery';
-import { configuredPusdCategory, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
+import { configuredPusdCategory, PUSD_MAINNET_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
@@ -253,11 +253,11 @@ const decodePusdLink = (s: string): PusdCircleParams => {
     throw new Error('This is not a valid Chipnet PUSD circle link.');
   }
   const p: PusdCircleParams = { ...value, contribution: BigInt(value.contribution) };
-  // Invite links are untrusted input: accept only the currently configured token category.
-  // With Chipnet PUSD unconfigured, legacy links intentionally remain unavailable.
-  const configuredCategory = configuredPusdCategory(p.network);
-  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
-    throw new Error('This invite uses an unconfigured PUSD category. Only the configured token category is accepted.');
+  // The token category is part of the on-chain circle identity. A clean device can
+  // read it from a verified manifest without having to configure it in localStorage.
+  // Never allow the official Mainnet category to be reused on Chipnet.
+  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() === PUSD_MAINNET_CATEGORY) {
+    throw new Error('This Chipnet PUSD circle has an invalid or Mainnet token category.');
   }
   validatePusdParams(p);
   return p;
@@ -544,8 +544,7 @@ const decodePusdV3Link = (encoded: string): PusdV3Params => {
       (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
     throw new Error('Invalid PUSD ACR v3 circle link.');
   }
-  const configured = configuredPusdCategory('chipnet');
-  if (p.pusdCategory.toLowerCase() !== configured.toLowerCase()) throw new Error('This PUSD circle uses a category that is not the currently verified Chipnet PUSD category.');
+  if (p.pusdCategory.toLowerCase() === PUSD_MAINNET_CATEGORY) throw new Error('The official PUSD Mainnet category cannot be used on Chipnet.');
   const params: PusdV3Params = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee), retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps) };
   const gross = BigInt(params.members.length) * params.contribution;
   const retained = gross * params.retentionBps! / 10_000n;
