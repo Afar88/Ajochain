@@ -129,8 +129,8 @@ export async function planPusdV3Genesis(draft: PusdV3Draft, walletAddress: strin
   validate(draft);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token).sort((a,b) => a.satoshis > b.satoshis ? -1 : 1);
-  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= DUST);
-  if (!genesis) throw new Error('PUSD v3 creation needs a funded BCH output #0 for the circle token category and enough BCH for receipts and fee reserve.');
+  const genesis = coins.find(u => u.vout === 0);
+  if (!genesis) throw new Error('PUSD v3 creation needs a non-token BCH output #0 for the circle token category. That coin has no 3,000-satoshi minimum; total BCH must cover state/receipt outputs, reserve, markers and fees.');
   const params: PusdV3Params = { ...draft, retentionBps: draft.retentionBps ?? DEFAULT_RETENTION_BPS, stateCategory: genesis.txid, pusdCategory: categoryFor(draft) };
   const pkhs = params.members.map(addressToPkh);
   while (pkhs.length < 5) pkhs.push(new Uint8Array(20));
