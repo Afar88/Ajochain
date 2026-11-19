@@ -95,8 +95,8 @@ export async function planV2Genesis(draft: V2CircleDraft, walletAddress: string)
   validate(draft);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token);
-  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= 3000n);
-  if (!genesis) throw new Error('V2 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. Check wallet funding; do not send more BCH until this is confirmed.');
+  const genesis = coins.find(u => u.vout === 0);
+  if (!genesis) throw new Error('V2 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. That coin has no 3,000-satoshi minimum; total BCH must cover the state NFT, member receipts, discovery markers and fees.');
   const params: V2CircleParams = { ...draft, stateCategory: genesis.txid };
   const contract = contractFor(params, provider);
   const discovery = { formatVersion: 1 as const, contractVersion: 2 as const, network: params.network, asset: 'BCH' as const, name: params.name, members: params.members, contribution: params.contribution, maxFee: params.maxFee, retentionBps: 0n };
