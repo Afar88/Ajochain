@@ -21,13 +21,11 @@ const SERVERS: Record<Net, [string, number][]> = {
 
 function makeProvider(net: Net, host: string, port: number) {
   const electrum = new ElectrumClient('AjoChain', '1.5.0', new ElectrumWebSocket(host, { port, encrypted: true, timeout: 8000 } as any));
-  return { provider: new ElectrumNetworkProvider(net, { electrum } as any), electrum };
+  return new ElectrumNetworkProvider(net, { electrum } as any);
 }
 
 const providers: Partial<Record<Net, Promise<ElectrumNetworkProvider>>> = {};
-const electrumClients: Partial<Record<Net, ElectrumClient>> = {};
-
-/** Resolve a working Electrum provider and retain the exact client that won the probe. */
+/** Resolve a working Electrum provider for the network (cached). */
 export function getProvider(net: Net): Promise<ElectrumNetworkProvider> {
   if (!providers[net]) {
     // Optional override, e.g. localStorage.setItem('ajo-electrum-chipnet', 'myserver.example:50004')
@@ -38,17 +36,13 @@ export function getProvider(net: Net): Promise<ElectrumNetworkProvider> {
     const probes = list.map(async ([h, port]) => {
       const candidate = makeProvider(net, h, port);
       await Promise.race([
-        candidate.provider.getBlockHeight(),
+        candidate.getBlockHeight(),
         new Promise((_, rej) => setTimeout(() => rej(new Error(`${h} timed out`)), 9000)),
       ]);
       return candidate;
     });
-    providers[net] = Promise.any(probes).then(({ provider, electrum }) => {
-      electrumClients[net] = electrum;
-      return provider;
-    }).catch(() => {
+    providers[net] = Promise.any(probes).catch(() => {
       delete providers[net];
-      delete electrumClients[net];
       throw new Error(`No ${net} Electrum server reachable (${list.map((l) => l[0]).join(', ')})`);
     });
   }
@@ -57,14 +51,13 @@ export function getProvider(net: Net): Promise<ElectrumNetworkProvider> {
 
 /** Read the address's public transaction history directly from the selected Electrum server. */
 export async function getAddressHistory(net: Net, address: string): Promise<{ txid: string; height: number }[]> {
-  await getProvider(net);
-  const client = electrumClients[net];
-  if (!client) throw new Error(`No ${net} Electrum client is available for history lookup.`);
+  const provider = await getProvider(net);
   const pkh = addressToPkh(address);
   const lockingBytecode = new Uint8Array([0x76, 0xa9, 0x14, ...pkh, 0x88, 0xac]);
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', lockingBytecode));
   const scriptHash = Array.from(digest.reverse(), byte => byte.toString(16).padStart(2, '0')).join('');
-  const history = await client.request('blockchain.scripthash.get_history', scriptHash) as unknown;
+  // Use CashScript's public request wrapper so concurrent requests share the provider lifecycle safely.
+  const history = await provider.performRequest('blockchain.scripthash.get_history', scriptHash) as unknown;
   if (!Array.isArray(history)) throw new Error('The Electrum server returned an invalid script-hash history response.');
   return history.flatMap((entry: any) => {
     if (!entry || typeof entry.tx_hash !== 'string' || !/^[0-9a-f]{64}$/i.test(entry.tx_hash) || !Number.isInteger(entry.height)) return [];
@@ -74,10 +67,8 @@ export async function getAddressHistory(net: Net, address: string): Promise<{ tx
 
 /** Fetch the raw transaction bytes for an on-chain discovery candidate. */
 export async function getRawTransaction(net: Net, txid: string): Promise<string> {
-  await getProvider(net);
-  const client = electrumClients[net];
-  if (!client) throw new Error(`No ${net} Electrum client is available for transaction lookup.`);
-  const raw = await client.request('blockchain.transaction.get', txid, false);
+  const provider = await getProvider(net);
+  const raw = await provider.getRawTransaction(txid);
   if (typeof raw !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(raw)) throw new Error('Electrum returned an invalid raw transaction.');
   return raw;
 }
