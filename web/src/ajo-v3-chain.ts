@@ -4,6 +4,7 @@ import artifactJson from '../../contracts/AjoCircleV3.json' with { type: 'json' 
 import { addressToPkh, type Net } from '../../src/lib/ajo';
 import { getProvider } from './chain';
 import { DEFAULT_RETENTION_BPS, MAX_RETENTION_BPS } from '../../src/lib/retention';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 const artifact = artifactJson as unknown as Artifact;
 const STATE_DUST = 1000n;
@@ -105,22 +106,25 @@ export async function planV3Genesis(draft: V3CircleDraft, walletAddress: string)
   if (!genesis) throw new Error('V3 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. Check wallet funding; do not send more BCH until this is confirmed.');
   const params: V3CircleParams = { ...draft, retentionBps: draft.retentionBps ?? DEFAULT_RETENTION_BPS, stateCategory: genesis.txid };
   const contract = contractFor(params, provider);
-  const outputs = params.members.length + 2;
+  const discovery = { formatVersion: 1 as const, contractVersion: 3 as const, network: params.network, asset: 'BCH' as const, name: params.name, members: params.members, contribution: params.contribution, maxFee: params.maxFee, retentionBps: params.retentionBps ?? DEFAULT_RETENTION_BPS };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputs = params.members.length + 2 + onchainDiscoveryOutputCount(discovery);
   const inputs: SpendableUtxo[] = [genesis];
   let total = genesis.satoshis;
   for (const coin of coins) {
     if (coin.txid === genesis.txid && coin.vout === genesis.vout) continue;
-    if (total >= STATE_DUST + BigInt(params.members.length) * RECEIPT_DUST + feeEstimate(inputs.length, outputs) + CHANGE_DUST) break;
+    if (total >= STATE_DUST + BigInt(params.members.length) * RECEIPT_DUST + discoveryCost + feeEstimate(inputs.length, outputs) + 250n + CHANGE_DUST) break;
     inputs.push(coin);
     total += coin.satoshis;
   }
-  const fee = feeEstimate(inputs.length, outputs);
-  const change = total - STATE_DUST - BigInt(params.members.length) * RECEIPT_DUST - fee;
+  const fee = feeEstimate(inputs.length, outputs) + 250n;
+  const change = total - STATE_DUST - BigInt(params.members.length) * RECEIPT_DUST - discoveryCost - fee;
   if (change < CHANGE_DUST) throw new Error('Not enough BCH to create the v3 state, member receipts, and change.');
   const builder = new TransactionBuilder({ provider });
   inputs.forEach(u => builder.addInput(u, placeholderP2PKHUnlocker(walletAddress)));
   builder.addOutput({ to: contract.tokenAddress, amount: STATE_DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '5300' } } });
   for (let i = 0; i < params.members.length; i++) builder.addOutput({ to: contract.tokenAddress, amount: RECEIPT_DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: v3ReceiptCommitment(i, 0n) } } });
+  addOnchainDiscoveryOutputs(builder, discovery);
   builder.addOutput({ to: walletAddress, amount: change });
   const wc = builder.generateWcTransactionObject({ broadcast: false, userPrompt: `Create v3 Ajo circle "${params.name}" and mint ${params.members.length} member receipts` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i) };
