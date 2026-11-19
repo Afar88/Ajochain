@@ -5,6 +5,7 @@ import {
   encodeOnchainDiscoveryManifest,
   isOnchainMemberMarker,
   readOnchainDiscoveryOpReturn,
+  validateCashTokensGenesisSourceOutput,
 } from '../src/lib/onchain-discovery.js';
 
 const members = [
@@ -47,6 +48,14 @@ describe('AjoChain on-chain discovery manifest', () => {
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x6a, 0x4c]))).toBeNull();
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x6a, 0x4c, 0x04, 0x41, 0x42]))).toBeNull();
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x51, 0x01]))).toBeNull();
+  });
+
+  it('requires the CashTokens genesis input to spend a non-token vout-0 output', () => {
+    const txid = 'ab'.repeat(32);
+    expect(() => validateCashTokensGenesisSourceOutput(txid, txid, { valueSatoshis: 1n })).not.toThrow();
+    expect(() => validateCashTokensGenesisSourceOutput(txid, txid, { valueSatoshis: 1n, token: { category: 'cd'.repeat(32) } })).toThrow(/non-token output 0/);
+    expect(() => validateCashTokensGenesisSourceOutput(txid, 'cd'.repeat(32), { valueSatoshis: 1n })).toThrow(/previous transaction ID/);
+    expect(() => validateCashTokensGenesisSourceOutput(txid, txid, undefined)).toThrow(/output 0/);
   });
 
   it('recognises only the exact 546-satoshi marker sent to the queried member', () => {
