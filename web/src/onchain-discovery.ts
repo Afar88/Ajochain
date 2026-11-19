@@ -1,8 +1,8 @@
-import { binToHex, decodeTransaction, decodeCashAddress, type TransactionCommon, hexToBin } from '@bitauth/libauth';
+import { binToHex, decodeTransaction, decodeCashAddress, hashTransactionUiOrder, type TransactionCommon, hexToBin } from '@bitauth/libauth';
 import type { Contract } from 'cashscript';
 import { addressToPkh, circleContract, type CircleParams, type Net } from '../../src/lib/ajo';
 import {
-  configuredPusdCategory, isPusdStateUtxo, pusdContract, pusdStatus,
+  isPusdStateUtxo, pusdContract, pusdStatus,
   type PusdCircleParams,
 } from '../../src/lib/pusd';
 import { verifyClassicCircle } from '../../src/lib/recovery';
@@ -123,7 +123,9 @@ function findCandidate(
   walletAddress: string,
 ): Candidate | null {
   if (height <= 0) return null; // Only confirmed transactions are blockchain discovery records.
-  const transaction = decodeTransaction(hexToBin(raw));
+  const rawBytes = hexToBin(raw);
+  if (binToHex(hashTransactionUiOrder(rawBytes)).toLowerCase() !== txid.toLowerCase()) return null;
+  const transaction = decodeTransaction(rawBytes);
   if (typeof transaction === 'string') return null;
   if (!transaction.inputs.length || transaction.inputs[0].outpointIndex !== 0) return null;
 
