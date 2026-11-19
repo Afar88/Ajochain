@@ -75,15 +75,11 @@ export function validateCashTokensGenesisSourceOutput(
 }
 
 function compactName(name: string): Uint8Array {
-  const encoder = new TextEncoder();
-  let compact = '';
-  for (const character of name.trim()) {
-    const candidate = compact + character;
-    if (encoder.encode(candidate).length > MAX_NAME_BYTES) break;
-    compact = candidate;
-  }
-  const encoded = encoder.encode(compact);
+  const encoded = new TextEncoder().encode(name.trim());
   if (!encoded.length) throw new Error('Circle name is required for on-chain discovery.');
+  if (encoded.length > MAX_NAME_BYTES) {
+    throw new Error(`Circle name must be no longer than ${MAX_NAME_BYTES} UTF-8 bytes for on-chain discovery.`);
+  }
   return encoded;
 }
 
