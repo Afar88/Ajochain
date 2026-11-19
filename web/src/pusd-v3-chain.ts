@@ -285,7 +285,8 @@ export async function readPusdV3Circle(params: PusdV3Params) {
   const utxos = await contract.getUtxos();
   const { state, receipts, pool } = assertStateSet(utxos, params);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('PUSD v3 circle is complete or has invalid round state.');
+  if (round < 0 || round > params.members.length) throw new Error('PUSD v3 circle has invalid round state.');
+  const completed = round === params.members.length;
   const credits = receipts.map(r => creditFrom(r.token!.nft!.commitment));
   const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
   if (pool && pool.token!.amount !== totalCredits) throw new Error('PUSD pool and member receipts do not reconcile.');
