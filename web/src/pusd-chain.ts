@@ -8,6 +8,7 @@ import { encodeCashAddress } from '@bitauth/libauth';
 import { addressToPkh } from '../../src/lib/ajo';
 import { configuredPusdCategory, pusdContract, PUSD_DUST, PUSD_DEFAULT_RESERVE, type PusdCircleParams } from '../../src/lib/pusd';
 import { encodeRound } from '../../src/lib/ajo';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 const estimateFee = (inputs:number, outputs:number) => BigInt(10 + inputs * 150 + outputs * 100 + 100);
 
@@ -19,24 +20,28 @@ export async function planPusdGenesis(
   const provider = await getProvider(base.network);
   const walletUtxos = await provider.getUtxos(walletAddress);
   const coins = walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
-  const genesis = coins.find(u=>u.vout===0 && u.satoshis>=PUSD_DUST+reserveSats+1000n);
-  if(!genesis) throw new Error('Wallet needs an output #0 BCH coin large enough to create the state NFT and fee reserve. Send BCH to your receive address and retry.');
+  const genesis = coins.find(u=>u.vout===0);
+  if(!genesis) throw new Error('Wallet needs a non-token BCH output #0 for CashTokens category creation. That coin has no 3,000-satoshi minimum; the wallet total must still cover the state NFT, fee reserve, member markers and transaction fee.');
   const params:PusdCircleParams={...base,stateCategory:genesis.txid,pusdCategory:base.pusdCategory ?? configuredPusdCategory(base.network)};
   const contract=pusdContract(params,provider);
+  const discovery = { formatVersion: 1 as const, contractVersion: 1 as const, network: base.network, asset: 'PUSD' as const, name: base.name, members: base.members, contribution: base.contribution, maxFee: 0n, retentionBps: 0n, pusdCategory: params.pusdCategory! };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputCount = 3 + onchainDiscoveryOutputCount(discovery);
   const inputs:SpendableUtxo[]=[genesis];
   let total=genesis.satoshis;
   for(const u of coins){
-    if(total>=PUSD_DUST+reserveSats+estimateFee(inputs.length,3)+546n) break;
+    if(total>=PUSD_DUST+reserveSats+discoveryCost+estimateFee(inputs.length,outputCount)+250n+546n) break;
     if(u.txid===genesis.txid && u.vout===genesis.vout) continue;
     inputs.push(u); total+=u.satoshis;
   }
-  const fee=estimateFee(inputs.length,3);
-  const change=total-PUSD_DUST-reserveSats-fee;
+  const fee=estimateFee(inputs.length,outputCount)+250n;
+  const change=total-PUSD_DUST-reserveSats-discoveryCost-fee;
   if(change<0n) throw new Error('Not enough BCH to create the PUSD circle and its initial fee reserve');
   const b=new TransactionBuilder({provider});
   for(const u of inputs) b.addInput(u,placeholderP2PKHUnlocker(walletAddress));
   b.addOutput({to:contract.tokenAddress,amount:PUSD_DUST,token:{category:genesis.txid,amount:0n,nft:{capability:'mutable',commitment:encodeRound(0)} }});
   b.addOutput({to:contract.address,amount:reserveSats});
+  addOnchainDiscoveryOutputs(b, discovery);
   if(change>=546n) b.addOutput({to:walletAddress,amount:change});
   const wc=b.generateWcTransactionObject({broadcast:false,userPrompt:`Create PUSD Ajo circle "${base.name}" and fund its BCH fee reserve`});
   return {params,contract,wc,walletInputs:inputs.map((_,i)=>i),reserveSats};

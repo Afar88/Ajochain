@@ -9,6 +9,7 @@ import { addressToPkh, type Net } from '../../src/lib/ajo';
 import { configuredPusdCategory } from '../../src/lib/pusd';
 import { DEFAULT_RETENTION_BPS, MAX_RETENTION_BPS } from '../../src/lib/retention';
 import { getProvider } from './chain';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 const artifact = artifactJson as unknown as Artifact;
 const DUST = 1_000n;
@@ -128,8 +129,8 @@ export async function planPusdV3Genesis(draft: PusdV3Draft, walletAddress: strin
   validate(draft);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token).sort((a,b) => a.satoshis > b.satoshis ? -1 : 1);
-  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= DUST);
-  if (!genesis) throw new Error('PUSD v3 creation needs a funded BCH output #0 for the circle token category and enough BCH for receipts and fee reserve.');
+  const genesis = coins.find(u => u.vout === 0);
+  if (!genesis) throw new Error('PUSD v3 creation needs a non-token BCH output #0 for the circle token category. That coin has no 3,000-satoshi minimum; total BCH must cover state/receipt outputs, reserve, markers and fees.');
   const params: PusdV3Params = { ...draft, retentionBps: draft.retentionBps ?? DEFAULT_RETENTION_BPS, stateCategory: genesis.txid, pusdCategory: categoryFor(draft) };
   const pkhs = params.members.map(addressToPkh);
   while (pkhs.length < 5) pkhs.push(new Uint8Array(20));
@@ -138,22 +139,25 @@ export async function planPusdV3Genesis(draft: PusdV3Draft, walletAddress: strin
     params.contribution, params.maxFee, params.retentionBps,
     hexToBin(params.stateCategory).reverse(), hexToBin(params.pusdCategory!).reverse(),
   ] as any, { provider, contractType: 'p2sh32' });
-  const outputCount = params.members.length + 3;
+  const discovery = { formatVersion: 1 as const, contractVersion: 3 as const, network: params.network, asset: 'PUSD' as const, name: params.name, members: params.members, contribution: params.contribution, maxFee: params.maxFee, retentionBps: params.retentionBps ?? DEFAULT_RETENTION_BPS, pusdCategory: params.pusdCategory! };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputCount = params.members.length + 3 + onchainDiscoveryOutputCount(discovery);
   const inputs: SpendableUtxo[] = [genesis];
   let total = genesis.satoshis;
   for (const coin of coins) {
     if (coin.txid === genesis.txid && coin.vout === genesis.vout) continue;
-    if (total >= DUST + BigInt(params.members.length) * DUST + reserveSats + feeEstimate(inputs.length, outputCount) + CHANGE_DUST) break;
+    if (total >= DUST + BigInt(params.members.length) * DUST + reserveSats + discoveryCost + feeEstimate(inputs.length, outputCount) + 250n + CHANGE_DUST) break;
     inputs.push(coin); total += coin.satoshis;
   }
-  const fee = feeEstimate(inputs.length, outputCount);
-  const change = total - DUST - BigInt(params.members.length) * DUST - reserveSats - fee;
+  const fee = feeEstimate(inputs.length, outputCount) + 250n;
+  const change = total - DUST - BigInt(params.members.length) * DUST - reserveSats - discoveryCost - fee;
   if (change < CHANGE_DUST) throw new Error('Not enough BCH for PUSD v3 state, member receipts, reserve and change.');
   const b = new TransactionBuilder({ provider });
   inputs.forEach(u => b.addInput(u, placeholderP2PKHUnlocker(walletAddress)));
   b.addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '530000' } } });
   for (let i = 0; i < params.members.length; i++) b.addOutput({ to: contract.tokenAddress, amount: DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: receiptCommitment(i, 0n) } } });
   b.addOutput({ to: contract.address, amount: reserveSats });
+  addOnchainDiscoveryOutputs(b, discovery);
   b.addOutput({ to: walletAddress, amount: change });
   const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Create PUSD ACR v3 circle "${params.name}" with 20% default retention` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i), reserveSats };
@@ -225,7 +229,8 @@ export async function planPusdV3Payout(params: PusdV3Params) {
   const { state, receipts, pool } = assertStateSet(all, params);
   if (!pool) throw new Error('No PUSD member-credit pool exists yet.');
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('PUSD v3 circle is complete or has invalid round state.');
+  if (round < 0 || round > params.members.length) throw new Error('PUSD v3 circle has invalid round state.');
+  const completed = round === params.members.length;
   const credits = receipts.map(r => creditFrom(r.token!.nft!.commitment));
   if (credits.some(credit => credit < params.contribution)) throw new Error('Payout blocked: every member must independently cover one full contribution.');
   const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
@@ -280,10 +285,11 @@ export async function readPusdV3Circle(params: PusdV3Params) {
   const utxos = await contract.getUtxos();
   const { state, receipts, pool } = assertStateSet(utxos, params);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2, 4), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('PUSD v3 circle is complete or has invalid round state.');
+  if (round < 0 || round > params.members.length) throw new Error('PUSD v3 circle has invalid round state.');
+  const completed = round === params.members.length;
   const credits = receipts.map(r => creditFrom(r.token!.nft!.commitment));
   const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
   if (pool && pool.token!.amount !== totalCredits) throw new Error('PUSD pool and member receipts do not reconcile.');
-  const ready = !!pool && totalCredits === pool.token!.amount && credits.every(credit => credit >= params.contribution);
-  return { contract, utxos, state, receipts, pool, round, credits, totalCredits, ready, recipient: params.members[round] };
+  const ready = !completed && !!pool && totalCredits === pool.token!.amount && credits.every(credit => credit >= params.contribution);
+  return { contract, utxos, state, receipts, pool, round, credits, totalCredits, ready, completed, recipient: completed ? null : params.members[round] };
 }

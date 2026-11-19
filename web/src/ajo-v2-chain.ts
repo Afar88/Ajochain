@@ -2,6 +2,7 @@ import { Contract, TransactionBuilder, placeholderP2PKHUnlocker, type SpendableU
 import { hexToBin } from '@bitauth/libauth';
 import artifactJson from '../../contracts/AjoCircleV2.json' with { type: 'json' };
 import { addressToPkh, type Net } from '../../src/lib/ajo';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 import { getProvider } from './chain';
 
 const artifact = artifactJson as unknown as Artifact;
@@ -94,26 +95,29 @@ export async function planV2Genesis(draft: V2CircleDraft, walletAddress: string)
   validate(draft);
   const provider = await getProvider(draft.network);
   const coins = (await provider.getUtxos(walletAddress)).filter(u => !u.token);
-  const genesis = coins.find(u => u.vout === 0 && u.satoshis >= 3000n);
-  if (!genesis) throw new Error('V2 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. Check wallet funding; do not send more BCH until this is confirmed.');
+  const genesis = coins.find(u => u.vout === 0);
+  if (!genesis) throw new Error('V2 creation needs a non-token BCH UTXO at vout 0 for its CashTokens category. That coin has no 3,000-satoshi minimum; total BCH must cover the state NFT, member receipts, discovery markers and fees.');
   const params: V2CircleParams = { ...draft, stateCategory: genesis.txid };
   const contract = contractFor(params, provider);
-  const outputs = params.members.length + 2;
+  const discovery = { formatVersion: 1 as const, contractVersion: 2 as const, network: params.network, asset: 'BCH' as const, name: params.name, members: params.members, contribution: params.contribution, maxFee: params.maxFee, retentionBps: 0n };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputs = params.members.length + 2 + onchainDiscoveryOutputCount(discovery);
   const inputs: SpendableUtxo[] = [genesis];
   let total = genesis.satoshis;
   for (const coin of coins) {
     if (coin.txid === genesis.txid && coin.vout === genesis.vout) continue;
-    if (total >= STATE_DUST + BigInt(params.members.length) * RECEIPT_DUST + feeEstimate(inputs.length, outputs) + CHANGE_DUST) break;
+    if (total >= STATE_DUST + BigInt(params.members.length) * RECEIPT_DUST + discoveryCost + feeEstimate(inputs.length, outputs) + 250n + CHANGE_DUST) break;
     inputs.push(coin);
     total += coin.satoshis;
   }
-  const fee = feeEstimate(inputs.length, outputs);
-  const change = total - STATE_DUST - BigInt(params.members.length) * RECEIPT_DUST - fee;
+  const fee = feeEstimate(inputs.length, outputs) + 250n;
+  const change = total - STATE_DUST - BigInt(params.members.length) * RECEIPT_DUST - discoveryCost - fee;
   if (change < CHANGE_DUST) throw new Error('Not enough BCH to create the v2 state, member receipts, and change.');
   const builder = new TransactionBuilder({ provider });
   inputs.forEach(u => builder.addInput(u, placeholderP2PKHUnlocker(walletAddress)));
   builder.addOutput({ to: contract.tokenAddress, amount: STATE_DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'minting', commitment: '5300' } } });
   for (let i = 0; i < params.members.length; i++) builder.addOutput({ to: contract.tokenAddress, amount: RECEIPT_DUST, token: { category: params.stateCategory, amount: 0n, nft: { capability: 'none', commitment: v2ReceiptCommitment(i, 0n) } } });
+  addOnchainDiscoveryOutputs(builder, discovery);
   builder.addOutput({ to: walletAddress, amount: change });
   const wc = builder.generateWcTransactionObject({ broadcast: false, userPrompt: `Create v2 Ajo circle "${params.name}" and mint ${params.members.length} member receipts` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i) };
@@ -187,7 +191,8 @@ export async function readV2Circle(params: V2CircleParams) {
   assertV2UtxoSet(utxos, params.stateCategory, params.members.length);
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('Invalid v2 payout round.');
+  if (round < 0 || round > params.members.length) throw new Error('Invalid v2 payout round.');
+  const completed = round === params.members.length;
   const receipts = params.members.map((_, index) => findReceipt(utxos, params.stateCategory, index));
   const credits = receipts.map(receipt => v2CreditFromCommitment(receipt.token!.nft!.commitment));
   return {
@@ -196,7 +201,8 @@ export async function readV2Circle(params: V2CircleParams) {
     round,
     stateSatoshis: state.satoshis,
     credits,
-    ready: credits.every(credit => credit >= params.contribution),
-    recipient: params.members[round],
+    ready: !completed && credits.every(credit => credit >= params.contribution),
+    completed,
+    recipient: completed ? null : params.members[round],
   };
 }

@@ -7,7 +7,8 @@ import {
   type SpendableUtxo,
   type Contract,
 } from 'cashscript';
-import { circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
+import { addressToPkh, circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 import { ElectrumClient } from '@electrum-cash/network';
 import { ElectrumWebSocket } from '@electrum-cash/web-socket';
@@ -33,12 +34,12 @@ export function getProvider(net: Net): Promise<ElectrumNetworkProvider> {
       ? [[override.split(':')[0], Number(override.split(':')[1] || 50004)]]
       : SERVERS[net];
     const probes = list.map(async ([h, port]) => {
-      const p = makeProvider(net, h, port);
+      const candidate = makeProvider(net, h, port);
       await Promise.race([
-        p.getBlockHeight(),
+        candidate.getBlockHeight(),
         new Promise((_, rej) => setTimeout(() => rej(new Error(`${h} timed out`)), 9000)),
       ]);
-      return p;
+      return candidate;
     });
     providers[net] = Promise.any(probes).catch(() => {
       delete providers[net];
@@ -46,6 +47,30 @@ export function getProvider(net: Net): Promise<ElectrumNetworkProvider> {
     });
   }
   return providers[net]!;
+}
+
+/** Read the address's public transaction history directly from the selected Electrum server. */
+export async function getAddressHistory(net: Net, address: string): Promise<{ txid: string; height: number }[]> {
+  const provider = await getProvider(net);
+  const pkh = addressToPkh(address);
+  const lockingBytecode = new Uint8Array([0x76, 0xa9, 0x14, ...pkh, 0x88, 0xac]);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', lockingBytecode));
+  const scriptHash = Array.from(digest.reverse(), byte => byte.toString(16).padStart(2, '0')).join('');
+  // Use CashScript's public request wrapper so concurrent requests share the provider lifecycle safely.
+  const history = await provider.performRequest('blockchain.scripthash.get_history', scriptHash) as unknown;
+  if (!Array.isArray(history)) throw new Error('The Electrum server returned an invalid script-hash history response.');
+  return history.flatMap((entry: any) => {
+    if (!entry || typeof entry.tx_hash !== 'string' || !/^[0-9a-f]{64}$/i.test(entry.tx_hash) || !Number.isInteger(entry.height)) return [];
+    return [{ txid: entry.tx_hash.toLowerCase(), height: entry.height as number }];
+  });
+}
+
+/** Fetch the raw transaction bytes for an on-chain discovery candidate. */
+export async function getRawTransaction(net: Net, txid: string): Promise<string> {
+  const provider = await getProvider(net);
+  const raw = await provider.getRawTransaction(txid);
+  if (typeof raw !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(raw)) throw new Error('Electrum returned an invalid raw transaction.');
+  return raw;
 }
 
 export function explorerTx(net: Net, txid: string) {
@@ -82,24 +107,27 @@ export async function inspectWalletFunding(net: Net, walletAddress: string) {
 export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, walletAddress: string) {
   const prov = await getProvider(base.network);
   const utxos = (await prov.getUtxos(walletAddress)).filter((u) => !u.token);
-  const genesisUtxo = utxos.find((u) => u.vout === 0 && u.satoshis >= 3000n);
+  const genesisUtxo = utxos.find((u) => u.vout === 0);
   if (!genesisUtxo) {
     throw new Error(utxos.length
-      ? `AjoChain can see ${utxos.length} BCH coin(s) totalling ${utxos.reduce((sum, u) => sum + u.satoshis, 0n).toString()} sats at the connected address, but none is eligible for CashTokens genesis. It needs a non-token coin worth at least 3,000 sats whose transaction output index is 0 (vout 0). Your BCH is not missing; this is a transaction-output requirement. Open Wallet details and run “Check BCH funding” to inspect the coins.`
+      ? `AjoChain can see ${utxos.length} BCH coin(s) totalling ${utxos.reduce((sum, u) => sum + u.satoshis, 0n).toString()} sats at the connected address, but none is eligible for CashTokens genesis. It needs a non-token coin at transaction output index 0 (vout 0). That coin has no 3,000-satoshi minimum; the wallet's total BCH must still cover the state NFT, member markers, and miner fee. Open Wallet details and run “Check BCH funding” to inspect the coins.`
       : 'No BCH coins were found at the connected receive address on this network. Check that Selene and AjoChain use the same network and receive address, then run “Check BCH funding” again. Do not send more BCH until the address and network are confirmed.');
   }
   const params: CircleParams = { ...base, stateCategory: genesisUtxo.txid };
   const contract = circleContract(params, prov);
 
+  const discovery = { formatVersion: 1 as const, contractVersion: 1 as const, network: base.network, asset: 'BCH' as const, name: base.name, members: base.members, contribution: base.contribution, maxFee: base.maxFee, retentionBps: 0n };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputCount = 2 + onchainDiscoveryOutputCount(discovery);
   const inputs: SpendableUtxo[] = [genesisUtxo];
   let total = genesisUtxo.satoshis;
   for (const u of utxos) {
-    if (total >= STATE_DUST + estimateFee(inputs.length, 2) + 546n) break;
+    if (total >= STATE_DUST + discoveryCost + estimateFee(inputs.length, outputCount) + 250n + 546n) break;
     if (u === genesisUtxo) continue;
     inputs.push(u); total += u.satoshis;
   }
-  const fee = estimateFee(inputs.length, 2);
-  const change = total - STATE_DUST - fee;
+  const fee = estimateFee(inputs.length, outputCount) + 250n;
+  const change = total - STATE_DUST - discoveryCost - fee;
   if (change < 0n) throw new Error('Not enough BCH in wallet to start the circle');
 
   const b = new TransactionBuilder({ provider: prov });
@@ -109,6 +137,7 @@ export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, wal
     amount: STATE_DUST,
     token: { category: genesisUtxo.txid, amount: 0n, nft: { capability: 'mutable', commitment: encodeRound(0) } },
   });
+  addOnchainDiscoveryOutputs(b, discovery);
   if (change >= 546n) b.addOutput({ to: walletAddress, amount: change });
   const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Start Ajo circle "${base.name}"` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i) };

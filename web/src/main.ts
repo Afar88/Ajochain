@@ -9,12 +9,13 @@ import { wallet } from './wallet';
 import { getProvider, explorerTx, planGenesis, planContribution, inspectWalletFunding } from './chain';
 import { MockNetworkProvider } from 'cashscript';
 import { verifyClassicCircle } from '../../src/lib/recovery';
-import { configuredPusdCategory, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
+import { configuredPusdCategory, PUSD_MAINNET_CATEGORY, PUSD_DEFAULT_RESERVE, pusdContract, pusdStatus, buildPusdPayout, validatePusdParams, type PusdCircleParams } from '../../src/lib/pusd';
 import { planPusdGenesis, planPusdContribution } from './pusd-chain';
 import { planV2Genesis, planV2Deposit, planV2Payout, readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { planV3Genesis, planV3Deposit, planV3Payout, readV3Circle, type V3CircleParams } from './ajo-v3-chain';
 import { planPusdV3Genesis, planPusdV3Deposit, planPusdV3Payout, readPusdV3Circle, type PusdV3Params } from './pusd-v3-chain';
 import { planMockPusdAnchor, planMockPusdGenesis, planMockPusdTransfer, verifyMockPusdGenesis, saveMockPusdCategory, getMockPusdCategory, MOCK_PUSD_TICKER, MOCK_PUSD_DECIMALS, parseMockPusdAmount } from './mock-pusd';
+import { discoverCirclesFromBlockchain, type DiscoveredCircle } from './onchain-discovery';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const app = $('#app');
@@ -176,7 +177,7 @@ wallet.onChange(() => {
   lastWalletState = wallet.state;
   const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
     (wallet.state === 'idle' && previousState === 'disconnecting');
-  if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
+  if (connectionSettled && (location.hash.startsWith('#/mine') || location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
       location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/') || location.hash.startsWith('#/v3/') || location.hash.startsWith('#/pv3/'))) route();
 });
 
@@ -253,11 +254,11 @@ const decodePusdLink = (s: string): PusdCircleParams => {
     throw new Error('This is not a valid Chipnet PUSD circle link.');
   }
   const p: PusdCircleParams = { ...value, contribution: BigInt(value.contribution) };
-  // Invite links are untrusted input: accept only the currently configured token category.
-  // With Chipnet PUSD unconfigured, legacy links intentionally remain unavailable.
-  const configuredCategory = configuredPusdCategory(p.network);
-  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() !== configuredCategory.toLowerCase()) {
-    throw new Error('This invite uses an unconfigured PUSD category. Only the configured token category is accepted.');
+  // The token category is part of the on-chain circle identity. A clean device can
+  // read it from a verified manifest without having to configure it in localStorage.
+  // Never allow the official Mainnet category to be reused on Chipnet.
+  if (typeof p.pusdCategory !== 'string' || p.pusdCategory.toLowerCase() === PUSD_MAINNET_CATEGORY) {
+    throw new Error('This Chipnet PUSD circle has an invalid or Mainnet token category.');
   }
   validatePusdParams(p);
   return p;
@@ -544,8 +545,7 @@ const decodePusdV3Link = (encoded: string): PusdV3Params => {
       (p.retentionBps !== undefined && (typeof p.retentionBps !== 'string' || !/^\d+$/.test(p.retentionBps)))) {
     throw new Error('Invalid PUSD ACR v3 circle link.');
   }
-  const configured = configuredPusdCategory('chipnet');
-  if (p.pusdCategory.toLowerCase() !== configured.toLowerCase()) throw new Error('This PUSD circle uses a category that is not the currently verified Chipnet PUSD category.');
+  if (p.pusdCategory.toLowerCase() === PUSD_MAINNET_CATEGORY) throw new Error('The official PUSD Mainnet category cannot be used on Chipnet.');
   const params: PusdV3Params = { ...p, contribution: BigInt(p.contribution), maxFee: BigInt(p.maxFee), retentionBps: p.retentionBps === undefined ? 2000n : BigInt(p.retentionBps) };
   const gross = BigInt(params.members.length) * params.contribution;
   const retained = gross * params.retentionBps! / 10_000n;
@@ -722,19 +722,98 @@ function renderMockPusdTools() {
   };
 }
 
+let mineRenderSequence = 0;
+
 function renderMine() {
+  const thisRender = ++mineRenderSequence;
+  const scanNetwork = network;
+  let scanAttempt = 0;
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
   const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
   const v3List: string[] = JSON.parse(localStorage.getItem('ajo-v3-circles') || '[]');
   const pv3List: string[] = JSON.parse(localStorage.getItem('ajo-pusd-v3-circles') || '[]');
-  const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH · Classic</small></span><span class="tag ${p.network === 'chipnet' ? 'green' : 'gold'}">V1</span></li>`; } catch { return ''; } }).join('');
-  const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Legacy PUSD</span></li>`; } catch { return ''; } }).join('');
-  const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag green">V2</span></li>`; } catch { return ''; } }).join('');
-  const v3Items = v3List.map((e) => { try { const p = decodeV3Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · ${Number(p.retentionBps ?? 2000n) / 100}% ACR retention</small></span><span class="tag green">ACR V3</span></li>`; } catch { return ''; } }).join('');
-  const pv3Items = pv3List.map((e) => { try { const p = decodePusdV3Link(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/pv3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · PUSD member credits · ${Number(p.retentionBps ?? 2000n) / 100}% retention</small></span><span class="tag green">PUSD ACR V3</span></li>`; } catch { return ''; } }).join('');
-  const hasCircles = Boolean((bchItems + pusdItems + v2Items + v3Items + pv3Items).trim());
-  app.innerHTML = `<section class="card"><div class="status-row"><div><p class="kicker">Dashboard</p><h2>My circles</h2></div><a class="btn sm" href="#/v2/create">+ New V2</a> <a class="btn sm ghost" href="#/v3/create">+ ACR V3</a></div><p class="muted small local-save-note">Saved on this browser only · not yet synced to wallet-based recovery. Connecting your wallet does not currently restore circles automatically; keep your original invite links for cross-device access.</p>${hasCircles ? `<ul class="members circle-list">${pv3Items}${v3Items}${v2Items}${bchItems}${pusdItems}</ul>` : '<div class="empty"><div class="empty-icon">◎</div><h3>Your saved list is empty</h3><p class="muted">Your circle may still exist on Chipnet. Saved lists are stored in this browser; restoring the invite link adds it back here.</p></div>'}<div class="restore-circle"><h3>Restore an existing circle</h3><p class="muted small">Paste its original AjoChain invite URL. This restores the circle details to this browser; it does not move funds or convert V1 into V2.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div></section>`;
+
+  const bchItems = bchList.map((e) => { try { const p = decodeCircle(e); return `<li><span class="av">₿</span><span class="who"><b><a href="#/c/${e}">${esc(p.name)}</a></b><small>${p.network} · ${p.members.length} members · ${bch(p.contribution)} BCH · Classic</small></span><span class="tag gold">Local V1</span></li>`; } catch { return ''; } }).join('');
+  const pusdItems = pusdList.map((e) => { try { const p = decodePusdLink(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/p/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${p.contribution.toString()} PUSD units</small></span><span class="tag gold">Local PUSD</span></li>`; } catch { return ''; } }).join('');
+  const v2Items = v2List.map((e) => { try { const p = decodeV2Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v2/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · member receipts</small></span><span class="tag gold">Local V2</span></li>`; } catch { return ''; } }).join('');
+  const v3Items = v3List.map((e) => { try { const p = decodeV3Link(e); return `<li><span class="av">◎</span><span class="who"><b><a href="#/v3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · ${bch(p.contribution)} BCH · ${Number(p.retentionBps ?? 2000n) / 100}% ACR retention</small></span><span class="tag gold">Local ACR V3</span></li>`; } catch { return ''; } }).join('');
+  const pv3Items = pv3List.map((e) => { try { const p = decodePusdV3Link(e); return `<li><span class="av">$</span><span class="who"><b><a href="#/pv3/${e}">${esc(p.name)}</a></b><small>Chipnet · ${p.members.length} members · PUSD member credits · ${Number(p.retentionBps ?? 2000n) / 100}% retention</small></span><span class="tag gold">Local PUSD ACR V3</span></li>`; } catch { return ''; } }).join('');
+  const localItems = (pv3Items + v3Items + v2Items + bchItems + pusdItems).trim();
+  const address = wallet.state === 'connected' ? wallet.address(network) : null;
+
+  app.innerHTML = `<section class="card">
+    <div class="status-row"><div><p class="kicker">Dashboard · ${network === 'chipnet' ? 'Chipnet' : 'BCH Mainnet'}</p><h2>My circles</h2></div><div class="actions"><a class="btn sm" href="#/v2/create">+ New V2</a><a class="btn sm ghost" href="#/v3/create">+ ACR V3</a></div></div>
+    <p class="muted small local-save-note">Circle discovery is read from Bitcoin Cash transaction history. The blockchain confirms membership markers, contract identity and live state; browser storage is only a fallback for older invite links.</p>
+    <div id="chainDiscovery"><p class="muted">${address ? 'Preparing an on-chain scan…' : 'Connect Selene/WizardConnect to scan this wallet address on the selected network.'}</p></div>
+    ${localItems ? `<div class="restore-circle"><h3>Saved invite links on this device</h3><p class="muted small">These are local bookmarks. They are not proof of current on-chain membership or circle state until the circle page verifies its contract.</p><ul class="members circle-list">${localItems}</ul></div>` : ''}
+    <div class="restore-circle"><h3>Restore a legacy circle</h3><p class="muted small">Older circles created before on-chain discovery markers were introduced cannot be found from wallet history alone. Paste their original invite URL here. This restores the metadata link, not funds.</p><label for="restoreCircleLink">Original circle invite link</label><input id="restoreCircleLink" class="addr-input" placeholder="Paste the full AjoChain circle link" autocomplete="off"/><button class="ghost" id="restoreCircleBtn">Restore circle</button><p class="err" id="restoreCircleError"></p></div>
+  </section>`;
+
+  const chainArea = $('#chainDiscovery');
+  const renderDiscovered = (circles: DiscoveredCircle[]) => {
+    const rows = circles.map(circle => {
+      let href = '';
+      let contribution = '';
+      switch (circle.kind) {
+        case 'v1-bch': {
+          const p = circle.params as CircleParams; href = `#/c/${encodeCircle(p)}`; contribution = `${bch(p.contribution)} BCH each`; break;
+        }
+        case 'v1-pusd': {
+          const p = circle.params as PusdCircleParams; href = `#/p/${encodePusdLink(p)}`; contribution = `${p.contribution.toString()} PUSD units each`; break;
+        }
+        case 'v2-bch': {
+          const p = circle.params as V2CircleParams; href = `#/v2/${encodeV2Link(p)}`; contribution = `${bch(p.contribution)} BCH each`; break;
+        }
+        case 'v3-bch': {
+          const p = circle.params as V3CircleParams; href = `#/v3/${encodeV3Link(p)}`; contribution = `${bch(p.contribution)} BCH each`; break;
+        }
+        case 'v3-pusd': {
+          const p = circle.params as PusdV3Params; href = `#/pv3/${encodePusdV3Link(p)}`; contribution = `${p.contribution.toString()} PUSD units each`; break;
+        }
+      }
+      const memberIndex = circle.manifest.members.findIndex(member =>
+        Array.from(addressToPkh(member)).join(',') === Array.from(addressToPkh(address!)).join(','),
+      );
+      const status = circle.completed ? 'Completed on-chain' : circle.ready ? 'Every member is funded for the next payout' : 'Active · verified from chain state';
+      const round = circle.completed ? 'All rounds complete' : `Round ${circle.round + 1}`;
+      const credits = circle.credits
+        ? `<small>Member credits: ${circle.credits.map(value => circle.manifest.asset === 'BCH' ? bch(value) + ' BCH' : value.toString() + ' PUSD').join(' · ')}</small>`
+        : '';
+      const symbol = circle.manifest.asset === 'BCH' ? '₿' : '$';
+      return `<li><span class="av">${symbol}</span><span class="who"><b><a href="${href}">${esc(circle.manifest.name)}</a></b><small>${circle.kind.toUpperCase()} · ${circle.manifest.network} · ${circle.manifest.members.length} members · ${contribution}</small><small>${esc(status)} · ${esc(round)} · You are Member ${memberIndex + 1}</small>${credits}<small>Confirmed in block ${circle.blockHeight} · ${esc(circle.contractAddress)}</small></span><span class="tag green">On-chain</span></li>`;
+    }).join('');
+    chainArea.innerHTML = circles.length
+      ? `<div class="status-row"><h3>Discovered from Bitcoin Cash</h3><button class="ghost sm" id="scanChainAgain">Scan again</button></div><p class="muted small">${circles.length} verified circle(s) found for ${esc(short(address!))}. Each record was rebuilt from its transaction manifest and checked against its live covenant UTXOs.</p><ul class="members circle-list">${rows}</ul>`
+      : `<div class="status-row"><h3>Discovered from Bitcoin Cash</h3><button class="ghost sm" id="scanChainAgain">Scan again</button></div><p class="muted small">No confirmed AjoChain discovery manifests with a marker for this address were found in its transaction history. Older circles without these markers still need their original invite link or a one-time on-chain backfill.</p>`;
+    $('#scanChainAgain').onclick = () => { void scan(); };
+  };
+
+  const scan = async () => {
+    const attempt = ++scanAttempt;
+    const isCurrent = () => thisRender === mineRenderSequence
+      && attempt === scanAttempt
+      && location.hash.startsWith('#/mine')
+      && wallet.state === 'connected'
+      && network === scanNetwork
+      && wallet.address(scanNetwork) === address;
+    if (!address) {
+      chainArea.innerHTML = '<p class="muted">Connect the wallet to scan its public transaction history. Local invite bookmarks remain below.</p>';
+      return;
+    }
+    chainArea.innerHTML = '<p class="muted">Scanning confirmed transactions from Electrum and verifying each circle against its on-chain state…</p>';
+    try {
+      const circles = await discoverCirclesFromBlockchain(scanNetwork, address);
+      if (isCurrent()) renderDiscovered(circles);
+    } catch (e: any) {
+      if (!isCurrent()) return;
+      chainArea.innerHTML = `<div class="status-row"><h3>On-chain scan unavailable</h3><button class="ghost sm" id="scanChainAgain">Retry scan</button></div><p class="err">${esc(String(e.message || e))}</p><p class="muted small">No database or browser cache is used as a substitute for blockchain verification.</p>`;
+      $('#scanChainAgain').onclick = () => { void scan(); };
+    }
+  };
+
+  if (address) void scan();
+
   $('#restoreCircleBtn').onclick = () => {
     const field = $<HTMLInputElement>('#restoreCircleLink');
     const error = $('#restoreCircleError');
@@ -765,7 +844,6 @@ function renderMine() {
     } catch (e: any) { error.textContent = String(e.message || e); }
   };
 }
-
 function route() {
   renderHeader();
   const h = location.hash || '#/';
