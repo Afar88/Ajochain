@@ -7,7 +7,7 @@ import {
   type SpendableUtxo,
   type Contract,
 } from 'cashscript';
-import { circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
+import { addressToPkh, circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
 import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 import { ElectrumClient } from '@electrum-cash/network';
@@ -60,8 +60,12 @@ export async function getAddressHistory(net: Net, address: string): Promise<{ tx
   await getProvider(net);
   const client = electrumClients[net];
   if (!client) throw new Error(`No ${net} Electrum client is available for history lookup.`);
-  const history = await client.request('blockchain.address.get_history', address) as unknown;
-  if (!Array.isArray(history)) throw new Error('The Electrum server returned an invalid address history response.');
+  const pkh = addressToPkh(address);
+  const lockingBytecode = new Uint8Array([0x76, 0xa9, 0x14, ...pkh, 0x88, 0xac]);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', lockingBytecode));
+  const scriptHash = Array.from(digest.reverse(), byte => byte.toString(16).padStart(2, '0')).join('');
+  const history = await client.request('blockchain.scripthash.get_history', scriptHash) as unknown;
+  if (!Array.isArray(history)) throw new Error('The Electrum server returned an invalid script-hash history response.');
   return history.flatMap((entry: any) => {
     if (!entry || typeof entry.tx_hash !== 'string' || !/^[0-9a-f]{64}$/i.test(entry.tx_hash) || !Number.isInteger(entry.height)) return [];
     return [{ txid: entry.tx_hash.toLowerCase(), height: entry.height as number }];
