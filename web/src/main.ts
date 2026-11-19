@@ -177,7 +177,7 @@ wallet.onChange(() => {
   lastWalletState = wallet.state;
   const connectionSettled = wallet.state === 'connected' || wallet.state === 'disconnected' ||
     (wallet.state === 'idle' && previousState === 'disconnecting');
-  if (connectionSettled && (location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
+  if (connectionSettled && (location.hash.startsWith('#/mine') || location.hash.startsWith('#/c/') || location.hash.startsWith('#/p/') ||
       location.hash.startsWith('#/create') || location.hash.startsWith('#/pusd/create') || location.hash.startsWith('#/v2/') || location.hash.startsWith('#/v3/') || location.hash.startsWith('#/pv3/'))) route();
 });
 
