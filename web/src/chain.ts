@@ -8,6 +8,7 @@ import {
   type Contract,
 } from 'cashscript';
 import { circleContract, STATE_DUST, encodeRound, type CircleParams, type Net } from '../../src/lib/ajo';
+import { addOnchainDiscoveryOutputs, onchainDiscoveryMarkerCost, onchainDiscoveryOutputCount } from '../../src/lib/onchain-discovery.js';
 
 import { ElectrumClient } from '@electrum-cash/network';
 import { ElectrumWebSocket } from '@electrum-cash/web-socket';
@@ -91,15 +92,18 @@ export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, wal
   const params: CircleParams = { ...base, stateCategory: genesisUtxo.txid };
   const contract = circleContract(params, prov);
 
+  const discovery = { formatVersion: 1 as const, contractVersion: 1 as const, network: base.network, asset: 'BCH' as const, name: base.name, members: base.members, contribution: base.contribution, maxFee: base.maxFee, retentionBps: 0n };
+  const discoveryCost = onchainDiscoveryMarkerCost(discovery);
+  const outputCount = 2 + onchainDiscoveryOutputCount(discovery);
   const inputs: SpendableUtxo[] = [genesisUtxo];
   let total = genesisUtxo.satoshis;
   for (const u of utxos) {
-    if (total >= STATE_DUST + estimateFee(inputs.length, 2) + 546n) break;
+    if (total >= STATE_DUST + discoveryCost + estimateFee(inputs.length, outputCount) + 250n + 546n) break;
     if (u === genesisUtxo) continue;
     inputs.push(u); total += u.satoshis;
   }
-  const fee = estimateFee(inputs.length, 2);
-  const change = total - STATE_DUST - fee;
+  const fee = estimateFee(inputs.length, outputCount) + 250n;
+  const change = total - STATE_DUST - discoveryCost - fee;
   if (change < 0n) throw new Error('Not enough BCH in wallet to start the circle');
 
   const b = new TransactionBuilder({ provider: prov });
@@ -109,6 +113,7 @@ export async function planGenesis(base: Omit<CircleParams, 'stateCategory'>, wal
     amount: STATE_DUST,
     token: { category: genesisUtxo.txid, amount: 0n, nft: { capability: 'mutable', commitment: encodeRound(0) } },
   });
+  addOnchainDiscoveryOutputs(b, discovery);
   if (change >= 546n) b.addOutput({ to: walletAddress, amount: change });
   const wc = b.generateWcTransactionObject({ broadcast: false, userPrompt: `Start Ajo circle "${base.name}"` });
   return { params, contract, wc, walletInputs: inputs.map((_, i) => i) };
