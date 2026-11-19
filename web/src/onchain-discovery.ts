@@ -63,11 +63,6 @@ function hex(bytes: Uint8Array): string {
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function p2pkhScript(address: string): Uint8Array {
-  const pkh = addressToPkh(address);
-  return new Uint8Array([0x76, 0xa9, 0x14, ...pkh, 0x88, 0xac]);
-}
-
 function markerOutputCount(outputs: any[], address: string): number {
   return outputs.filter(output => !output.token &&
     isOnchainMemberMarker(output.lockingBytecode, output.valueSatoshis, address),
@@ -263,9 +258,9 @@ export async function discoverCirclesFromBlockchain(
         }
         case 'v2-bch': {
           const params = reconstructed.params;
-          contract = (await readV2Circle(params)).contract;
-          verifyGenesisOutputs(candidate.transaction, candidate.manifest, candidate.stateCategory, contract.tokenAddress);
           const state = await readV2Circle(params);
+          contract = state.contract;
+          verifyGenesisOutputs(candidate.transaction, candidate.manifest, candidate.stateCategory, contract.tokenAddress);
           live = { round: state.round, completed: Boolean(state.completed), ready: state.ready, credits: state.credits, stateSatoshis: state.stateSatoshis };
           break;
         }
