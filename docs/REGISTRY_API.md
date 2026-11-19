@@ -1,6 +1,8 @@
-# Registry API contract (design)
+# Registry API contract (historical design proposal)
 
-Status: design only. These routes are not implemented or enabled. Do not advertise automatic recovery until the wallet-signing dependency and server-side verifier are live.
+> **Superseded for circle discovery by [Blockchain-first circle discovery](ONCHAIN_DISCOVERY.md).** This document records an earlier database-backed registry and BCH-native message-signing proposal. The routes below are not implemented or enabled and are not part of the current discovery path. Do not build a database registry as the source of truth for circles.
+
+Current discovery reads the connected public address's confirmed Electrum history, reconstructs circles from their on-chain manifests, verifies the genesis outputs and then reads the current covenant UTXOs. Any future database or indexer may only accelerate lookup; it must remain disposable and must never override blockchain data.
 
 ## Trust boundaries
 
