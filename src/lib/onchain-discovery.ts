@@ -80,6 +80,10 @@ function validateManifest(manifest: OnchainDiscoveryManifest): {
   if (!Array.isArray(manifest.members) || manifest.members.length < MIN_MEMBERS || manifest.members.length > MAX_MEMBERS) {
     throw new Error('On-chain discovery requires 2–5 member addresses.');
   }
+  const expectedPrefix = manifest.network === 'chipnet' ? 'bchtest:' : 'bitcoincash:';
+  if (!manifest.members.every(member => member.toLowerCase().startsWith(expectedPrefix))) {
+    throw new Error(`Every member address must use the ${manifest.network} CashAddress prefix.`);
+  }
   const members = manifest.members.map(addressToPkh);
   const ids = members.map(hex);
   if (new Set(ids).size !== ids.length) throw new Error('A circle cannot register the same member address more than once.');
