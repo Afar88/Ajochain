@@ -722,7 +722,12 @@ function renderMockPusdTools() {
   };
 }
 
+let mineRenderSequence = 0;
+
 function renderMine() {
+  const thisRender = ++mineRenderSequence;
+  const scanNetwork = network;
+  let scanAttempt = 0;
   const bchList: string[] = JSON.parse(localStorage.getItem('ajo-circles') || '[]');
   const pusdList: string[] = JSON.parse(localStorage.getItem('ajo-pusd-circles') || '[]');
   const v2List: string[] = JSON.parse(localStorage.getItem('ajo-v2-circles') || '[]');
@@ -785,15 +790,23 @@ function renderMine() {
   };
 
   const scan = async () => {
+    const attempt = ++scanAttempt;
+    const isCurrent = () => thisRender === mineRenderSequence
+      && attempt === scanAttempt
+      && location.hash.startsWith('#/mine')
+      && wallet.state === 'connected'
+      && network === scanNetwork
+      && wallet.address(scanNetwork) === address;
     if (!address) {
       chainArea.innerHTML = '<p class="muted">Connect the wallet to scan its public transaction history. Local invite bookmarks remain below.</p>';
       return;
     }
     chainArea.innerHTML = '<p class="muted">Scanning confirmed transactions from Electrum and verifying each circle against its on-chain state…</p>';
     try {
-      const circles = await discoverCirclesFromBlockchain(network, address);
-      if (location.hash.startsWith('#/mine')) renderDiscovered(circles);
+      const circles = await discoverCirclesFromBlockchain(scanNetwork, address);
+      if (isCurrent()) renderDiscovered(circles);
     } catch (e: any) {
+      if (!isCurrent()) return;
       chainArea.innerHTML = `<div class="status-row"><h3>On-chain scan unavailable</h3><button class="ghost sm" id="scanChainAgain">Retry scan</button></div><p class="err">${esc(String(e.message || e))}</p><p class="muted small">No database or browser cache is used as a substitute for blockchain verification.</p>`;
       $('#scanChainAgain').onclick = () => { void scan(); };
     }
