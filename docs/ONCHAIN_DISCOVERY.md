@@ -16,7 +16,7 @@ The marker is a discovery pointer, not an ownership credential and not a deposit
 1. The connected wallet supplies the public receive address for the selected network.
 2. AjoChain derives its P2PKH locking script and Electrum script hash, then reads the address's confirmed transaction history from a Chipnet or Mainnet Fulcrum server.
 3. AjoChain fetches candidate raw transactions and looks for a valid `AJO` OP_RETURN manifest plus exactly one 546-satoshi marker for every manifest member.
-4. The first input's source outpoint must use `vout = 0`. The category is derived from that input's previous transaction hash, not copied from browser storage.
+4. The first input's source outpoint must use `vout = 0`. AjoChain fetches that previous transaction, verifies its txid, and confirms output 0 exists, has positive BCH value, and contains no CashTokens. The category is derived from that input's previous transaction hash, not copied from browser storage.
 5. AjoChain reconstructs the matching V1, V2, or V3 covenant from the manifest and derives the expected contract address.
 6. The genesis transaction must contain the expected state NFT and, for V2/V3, every correctly indexed member receipt at the reconstructed covenant address.
 7. The current covenant UTXOs are fetched again from Electrum. V1 state, V2/V3 receipt sets, member credits, and PUSD pool/receipt reconciliation are validated against live chain data.
