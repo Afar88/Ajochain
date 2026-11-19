@@ -9,6 +9,7 @@ import { verifyClassicCircle } from '../../src/lib/recovery';
 import {
   decodeOnchainDiscoveryManifest, isOnchainMemberMarker, readOnchainDiscoveryOpReturn,
   type OnchainDiscoveryManifest,
+  validateCashTokensGenesisSourceOutput,
 } from '../../src/lib/onchain-discovery';
 import { readV2Circle, type V2CircleParams } from './ajo-v2-chain';
 import { readV3Circle, type V3CircleParams } from './ajo-v3-chain';
@@ -152,6 +153,24 @@ function findCandidate(
   return { txid, height, raw, manifest, stateCategory, transaction };
 }
 
+async function verifyGenesisSourceOutput(candidate: Candidate, network: Net): Promise<void> {
+  const rawPrevious = await getRawTransaction(network, candidate.stateCategory);
+  const previousBytes = hexToBin(rawPrevious);
+  const previousTxid = binToHex(hashTransactionUiOrder(previousBytes)).toLowerCase();
+  if (previousTxid !== candidate.stateCategory.toLowerCase()) {
+    throw new Error('The raw genesis source transaction does not match the CashTokens category.');
+  }
+  const previousTransaction = decodeTransaction(previousBytes);
+  if (typeof previousTransaction === 'string') {
+    throw new Error('The CashTokens genesis source transaction could not be decoded.');
+  }
+  validateCashTokensGenesisSourceOutput(
+    candidate.stateCategory,
+    previousTxid,
+    previousTransaction.outputs[0],
+  );
+}
+
 function reconstructParams(candidate: Candidate):
   | { kind: 'v1-bch'; params: CircleParams }
   | { kind: 'v1-pusd'; params: PusdCircleParams }
@@ -216,7 +235,10 @@ export async function discoverCirclesFromBlockchain(
       try {
         const raw = await getRawTransaction(network, item.txid);
         const candidate = findCandidate(item.txid, item.height, raw, walletAddress);
-        if (candidate && candidate.manifest.network === network) candidates.push(candidate);
+        if (candidate && candidate.manifest.network === network) {
+          await verifyGenesisSourceOutput(candidate, network);
+          candidates.push(candidate);
+        }
       } catch {
         // History entries can be pruned or unavailable at one Electrum server.
         // A missing transaction is not treated as a verified circle.
