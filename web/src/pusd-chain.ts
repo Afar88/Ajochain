@@ -20,8 +20,8 @@ export async function planPusdGenesis(
   const provider = await getProvider(base.network);
   const walletUtxos = await provider.getUtxos(walletAddress);
   const coins = walletUtxos.filter(u=>!u.token).sort((a,b)=>a.satoshis>b.satoshis?-1:1);
-  const genesis = coins.find(u=>u.vout===0 && u.satoshis>=PUSD_DUST+reserveSats+1000n);
-  if(!genesis) throw new Error('Wallet needs an output #0 BCH coin large enough to create the state NFT and fee reserve. Send BCH to your receive address and retry.');
+  const genesis = coins.find(u=>u.vout===0);
+  if(!genesis) throw new Error('Wallet needs a non-token BCH output #0 for CashTokens category creation. That coin has no 3,000-satoshi minimum; the wallet total must still cover the state NFT, fee reserve, member markers and transaction fee.');
   const params:PusdCircleParams={...base,stateCategory:genesis.txid,pusdCategory:base.pusdCategory ?? configuredPusdCategory(base.network)};
   const contract=pusdContract(params,provider);
   const discovery = { formatVersion: 1 as const, contractVersion: 1 as const, network: base.network, asset: 'PUSD' as const, name: base.name, members: base.members, contribution: base.contribution, maxFee: 0n, retentionBps: 0n, pusdCategory: params.pusdCategory! };
