@@ -1,4 +1,4 @@
-import { binToHex, decodeTransaction, decodeCashAddress, hexToBin } from '@bitauth/libauth';
+import { binToHex, decodeTransaction, decodeCashAddress, type TransactionCommon, hexToBin } from '@bitauth/libauth';
 import type { Contract } from 'cashscript';
 import { addressToPkh, circleContract, type CircleParams, type Net } from '../../src/lib/ajo';
 import {
@@ -43,7 +43,7 @@ interface Candidate {
   raw: string;
   manifest: OnchainDiscoveryManifest;
   stateCategory: string;
-  transaction: NonNullable<ReturnType<typeof decodeTransaction>> & { inputs: any[]; outputs: any[] };
+  transaction: TransactionCommon;
 }
 
 function scriptForCashAddress(address: string): Uint8Array {
@@ -68,10 +68,10 @@ function p2pkhScript(address: string): Uint8Array {
   return new Uint8Array([0x76, 0xa9, 0x14, ...pkh, 0x88, 0xac]);
 }
 
-function markerScriptPresent(outputs: any[], address: string): boolean {
-  return outputs.some(output =>
+function markerOutputCount(outputs: any[], address: string): number {
+  return outputs.filter(output => !output.token &&
     isOnchainMemberMarker(output.lockingBytecode, output.valueSatoshis, address),
-  );
+  ).length;
 }
 
 function validNftOutput(
@@ -127,6 +127,7 @@ function findCandidate(
   raw: string,
   walletAddress: string,
 ): Candidate | null {
+  if (height <= 0) return null; // Only confirmed transactions are blockchain discovery records.
   const transaction = decodeTransaction(hexToBin(raw));
   if (typeof transaction === 'string') return null;
   if (!transaction.inputs.length || transaction.inputs[0].outpointIndex !== 0) return null;
@@ -144,7 +145,8 @@ function findCandidate(
     }
   }
   if (!manifest || manifest.network === undefined) return null;
-  if (!markerScriptPresent(transaction.outputs, walletAddress)) return null;
+  // Every declared member must have exactly one spendable marker output in this transaction.
+  if (!manifest.members.every(member => markerOutputCount(transaction.outputs, member) === 1)) return null;
   const walletKey = hex(addressToPkh(walletAddress));
   if (!manifest.members.some(member => hex(addressToPkh(member)) === walletKey)) return null;
 
