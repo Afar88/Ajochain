@@ -208,7 +208,8 @@ export async function readV3Circle(params: V3CircleParams) {
   assertV3UtxoSet(utxos, params.stateCategory, params.members.length);
   const state = findState(utxos, params.stateCategory);
   const round = Number.parseInt(state.token!.nft!.commitment.slice(2), 16);
-  if (round < 0 || round >= params.members.length) throw new Error('Invalid v3 payout round.');
+  if (round < 0 || round > params.members.length) throw new Error('Invalid v3 payout round.');
+  const completed = round === params.members.length;
   const receipts = params.members.map((_, index) => findReceipt(utxos, params.stateCategory, index));
   const credits = receipts.map(receipt => v3CreditFromCommitment(receipt.token!.nft!.commitment));
   const totalCredits = credits.reduce((sum, credit) => sum + credit, 0n);
@@ -219,7 +220,8 @@ export async function readV3Circle(params: V3CircleParams) {
     round,
     stateSatoshis: state.satoshis,
     credits,
-    ready: credits.every(credit => credit >= params.contribution),
-    recipient: params.members[round],
+    ready: !completed && credits.every(credit => credit >= params.contribution),
+    completed,
+    recipient: completed ? null : params.members[round],
   };
 }
