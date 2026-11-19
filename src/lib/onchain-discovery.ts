@@ -4,7 +4,7 @@ import { addressToPkh, pkhToAddress, type Net } from './ajo.js';
 export const ONCHAIN_DISCOVERY_MARKER_SATS = 546n;
 const MAGIC = new Uint8Array([0x41, 0x4a, 0x4f]); // "AJO"
 const FORMAT_VERSION = 1;
-const MAX_NAME_BYTES = 32;
+const MAX_NAME_BYTES = 60;
 const MAX_MEMBERS = 5;
 const MIN_MEMBERS = 2;
 const ZERO_CATEGORY = '0'.repeat(64);
