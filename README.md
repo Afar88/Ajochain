@@ -39,7 +39,9 @@ See [ACR accounting rules](docs/AUTOMATIC_CONTRIBUTION_RETENTION.md) and [PUSD A
 3. Choose **Create**, select BCH or experimental PUSD, and enter the circle details and member payout order.
 4. Approve the creation transaction in your wallet. Share the generated circle link with members.
 5. Members contribute to the circle address. When the pot is full, anyone can trigger the scheduled payout.
-6. Open **My circles** to return to circles saved in this browser.
+6. Open **My circles** with your wallet connected. AjoChain scans confirmed BCH transaction history for on-chain circle manifests and verifies each circle's live covenant state. Older circles created before discovery markers still need their original invite link or a local saved link.
+
+See [Blockchain-first circle discovery](docs/ONCHAIN_DISCOVERY.md) for the manifest, marker outputs, verification steps, and legacy-circle limitation.
 
 For Chipnet BCH, obtain test coins from a Chipnet faucet such as [tbch.googol.cash](https://tbch.googol.cash/). PUSD is experimental and remains Chipnet-only. Never enter or share a seed phrase or private key with AjoChain.
 
