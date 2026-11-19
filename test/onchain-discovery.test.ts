@@ -44,10 +44,24 @@ describe('AjoChain on-chain discovery manifest', () => {
     expect(() => encodeOnchainDiscoveryManifest(manifest)).toThrow(/same member address/);
   });
 
+  it('reads the PUSHDATA1 OP_RETURN encoding used by full manifests', () => {
+    expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x6a, 0x4c, 0x03, 0x41, 0x4a, 0x4f])))
+      .toEqual(new Uint8Array([0x41, 0x4a, 0x4f]));
+  });
+
   it('rejects malformed or truncated OP_RETURN pushes', () => {
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x6a, 0x4c]))).toBeNull();
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x6a, 0x4c, 0x04, 0x41, 0x42]))).toBeNull();
     expect(readOnchainDiscoveryOpReturn(new Uint8Array([0x51, 0x01]))).toBeNull();
+  });
+
+  it('rejects names that would be silently truncated in the manifest', () => {
+    const manifest = {
+      formatVersion: 1 as const, contractVersion: 2 as const, network: 'chipnet' as const,
+      asset: 'BCH' as const, name: 'A'.repeat(61), members,
+      contribution: 1000n, maxFee: 1000n, retentionBps: 0n,
+    };
+    expect(() => encodeOnchainDiscoveryManifest(manifest)).toThrow(/60 UTF-8 bytes/);
   });
 
   it('requires the CashTokens genesis input to spend a non-token vout-0 output', () => {
